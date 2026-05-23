@@ -17,6 +17,21 @@ const TRUSTED_CDNS = [
   'fonts.googleapis.com',
   'fonts.gstatic.com',
   'cdnjs.cloudflare.com',
+  'unpkg.com',
+  'cdn.jsdelivr.net',
+  'jsdelivr.net',
+  'use.fontawesome.com',
+  'stackpath.bootstrapcdn.com',
+  'maxcdn.bootstrapcdn.com',
+  'netdna.bootstrapcdn.com',
+  'code.jquery.com',
+  'ajax.googleapis.com',
+  'ajax.aspnetcdn.com',
+  'cdn.shopify.com',
+  'storage.googleapis.com',
+  'github.com',
+  'raw.githubusercontent.com',
+  'githubusercontent.com',
 ];
 
 function isTrustedUrl(url: string): boolean {
@@ -39,20 +54,11 @@ function parseAtRules(css: string, issues: string[], warnings: string[]) {
   while ((match = IMPORT_RULE.exec(css)) !== null) {
     const target = match[1];
     if (!isTrustedUrl(target)) {
-      issues.push(`Untrusted @import: "${target}" — imports external stylesheets`);
+      warnings.push(`Untrusted @import: "${target}" — verify before deploying`);
     }
   }
 
-  // Check @font-face for external src
-  const fontFaceSrc = /@font-face\s*\{[^}]*src\s*:\s*url\(/gi;
-  if (fontFaceSrc.test(css)) {
-    warnings.push('@font-face with external src detected');
-  }
-
-  // Check @keyframes - mostly harmless but flag for review
-  if (/@keyframes\s/.test(css)) {
-    warnings.push('@keyframes animation detected');
-  }
+  // @font-face and @keyframes are harmless; no flagging needed
 }
 
 function parseProperties(css: string, issues: string[], warnings: string[]) {

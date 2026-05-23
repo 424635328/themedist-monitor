@@ -62,8 +62,11 @@ export function scanExtended(data: Record<string, unknown>): ExtendedSecurityRes
     ...htmlAudit.flagged,
   ];
 
+  // Only hard security issues make it unsafe; CSS warnings don't
+  const isSafe = base.isSafe && allIssues.length === 0;
+
   return {
-    isSafe: base.isSafe && cssAudit.safe && cssVarsAudit.safe,
+    isSafe,
     flaggedReasons: [...base.flaggedReasons, ...allIssues],
     cssAudit: {
       safe: cssAudit.safe && cssVarsAudit.safe,
