@@ -24,7 +24,9 @@ export async function DELETE() {
   // clear all data
   const fs = require('fs');
   const path = require('path');
-  const dataDir = path.join(process.cwd(), 'data');
+  const dataDir = process.env.VERCEL
+    ? path.join('/tmp', 'data')
+    : path.join(process.cwd(), 'data');
   if (fs.existsSync(dataDir)) {
     fs.rmSync(dataDir, { recursive: true, force: true });
     fs.mkdirSync(dataDir, { recursive: true });

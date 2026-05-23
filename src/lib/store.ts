@@ -2,7 +2,9 @@ import type { PerformanceLog, ThemeSnapshot, SystemAlert } from '@/types';
 import fs from 'fs';
 import path from 'path';
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = process.env.VERCEL
+  ? path.join('/tmp', 'data')
+  : path.join(process.cwd(), 'data');
 const PERF_FILE = path.join(DATA_DIR, 'performance-logs.json');
 const THEME_FILE = path.join(DATA_DIR, 'theme-snapshots.json');
 const ALERTS_FILE = path.join(DATA_DIR, 'system-alerts.json');
