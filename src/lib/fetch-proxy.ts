@@ -1,14 +1,81 @@
-import { setGlobalDispatcher, ProxyAgent } from 'undici';
+import https from 'https';
+import http from 'http';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
-const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+let proxyAgent: http.Agent | null = null;
 
-if (proxyUrl) {
-  const agent = new ProxyAgent(proxyUrl);
-  setGlobalDispatcher(agent);
-  console.log(`[Proxy] Global dispatcher set: ${proxyUrl}`);
+function getProxyUrl(): string | undefined {
+  return process.env.HTTPS_PROXY || process.env.HTTP_PROXY || undefined;
 }
 
-export function fetchWithProxy(url: string, init?: RequestInit): Promise<Response> {
-  // When global dispatcher is set, regular fetch already uses the proxy
-  return fetch(url, init);
+function getAgent(): http.Agent {
+  if (!proxyAgent) proxyAgent = new HttpsProxyAgent(getProxyUrl()!);
+  return proxyAgent;
+}
+
+function headersToInit(headers: http.IncomingHttpHeaders): Headers {
+  const h = new Headers();
+  for (const [key, value] of Object.entries(headers)) {
+    if (value !== undefined) {
+      if (Array.isArray(value)) {
+        for (const v of value) h.append(key, v);
+      } else {
+        h.set(key, value);
+      }
+    }
+  }
+  return h;
+}
+
+function collectBody(res: http.IncomingMessage): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    res.on('data', (chunk: Buffer) => chunks.push(chunk));
+    res.on('end', () => resolve(Buffer.concat(chunks)));
+    res.on('error', reject);
+  });
+}
+
+export async function fetchWithProxy(url: string, init?: RequestInit): Promise<Response> {
+  const proxyUrl = getProxyUrl();
+
+  if (!proxyUrl) {
+    return fetch(url, init);
+  }
+
+  const parsed = new URL(url);
+  const isHttps = parsed.protocol === 'https:';
+  const mod = isHttps ? https : http;
+
+  return new Promise((resolve, reject) => {
+    const options: https.RequestOptions = {
+      hostname: parsed.hostname,
+      port: parsed.port || (isHttps ? 443 : 80),
+      path: parsed.pathname + parsed.search,
+      method: init?.method || 'GET',
+      headers: (init?.headers as Record<string, string>) || {},
+      agent: getAgent(),
+      timeout: 15000,
+    };
+
+    const req = mod.request(options, async (res) => {
+      const body = await collectBody(res);
+      resolve(new Response(body.toString('utf-8'), {
+        status: res.statusCode || 502,
+        statusText: res.statusMessage,
+        headers: headersToInit(res.headers),
+      }));
+    });
+
+    req.on('error', (err) => reject(err));
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('Request timed out'));
+    });
+
+    if (init?.body) {
+      req.write(init.body as string);
+    }
+    req.end();
+  });
 }
