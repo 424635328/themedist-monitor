@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sanitizeObject } from '@/lib/security';
 import { validateTodayJson } from '@/lib/validator';
+import { fetchWithProxy } from '@/lib/fetch-proxy';
 
 export async function GET() {
   const errors: string[] = [];
@@ -14,7 +15,7 @@ export async function GET() {
     };
 
     try {
-      const res = await fetch(urls[platform], {
+      const res = await fetchWithProxy(urls[platform], {
         headers: { 'User-Agent': 'ThemeDist-Monitor/1.0' },
       });
       const data = await res.json();

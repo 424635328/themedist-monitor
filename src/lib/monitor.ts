@@ -3,6 +3,7 @@ import { validateTodayJson } from './validator';
 import { scanExtended } from './security';
 import { addPerformanceLog, addThemeSnapshot, addSystemAlert } from './store';
 import { notifyAlert } from './notifier';
+import { fetchWithProxy } from './fetch-proxy';
 
 const ENDPOINTS = {
   vercel: 'https://themedist.vercel.app/api/today.json',
@@ -33,7 +34,7 @@ async function checkEndpoint(platform: 'vercel' | 'netlify'): Promise<FetchResul
   const start = performance.now();
 
   try {
-    const response = await fetch(url, {
+    const response = await fetchWithProxy(url, {
       headers: { 'User-Agent': 'ThemeDist-Monitor/1.0' },
     });
     const latencyMs = Math.round(performance.now() - start);
@@ -66,7 +67,7 @@ async function checkEndpoint(platform: 'vercel' | 'netlify'): Promise<FetchResul
 async function checkDiyEndpoint(): Promise<DiyFetchResult> {
   const start = performance.now();
   try {
-    const response = await fetch(ENDPOINTS.diy, {
+    const response = await fetchWithProxy(ENDPOINTS.diy, {
       headers: { 'User-Agent': 'ThemeDist-Monitor/1.0' },
     });
     const latencyMs = Math.round(performance.now() - start);
