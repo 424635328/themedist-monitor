@@ -4,6 +4,7 @@ import { scanExtended } from './security';
 import { addPerformanceLog, addThemeSnapshot, addSystemAlert } from './store';
 import { notifyAlert } from './notifier';
 import { fetchWithProxy } from './fetch-proxy';
+import { resolveAlert, getSystemAlerts } from './store';
 
 const ENDPOINTS = {
   vercel: 'https://themedist.vercel.app/api/today.json',
@@ -30,11 +31,11 @@ interface DiyFetchResult {
 }
 
 async function checkEndpoint(platform: 'vercel' | 'netlify'): Promise<FetchResult> {
-  const url = ENDPOINTS[platform];
+  const bustUrl = `${ENDPOINTS[platform]}?t=${Date.now()}`;
   const start = performance.now();
 
   try {
-    const response = await fetchWithProxy(url, {
+    const response = await fetchWithProxy(bustUrl, {
       headers: { 'User-Agent': 'ThemeDist-Monitor/1.0' },
     });
     const latencyMs = Math.round(performance.now() - start);
@@ -67,7 +68,7 @@ async function checkEndpoint(platform: 'vercel' | 'netlify'): Promise<FetchResul
 async function checkDiyEndpoint(): Promise<DiyFetchResult> {
   const start = performance.now();
   try {
-    const response = await fetchWithProxy(ENDPOINTS.diy, {
+    const response = await fetchWithProxy(`${ENDPOINTS.diy}&t=${Date.now()}`, {
       headers: { 'User-Agent': 'ThemeDist-Monitor/1.0' },
     });
     const latencyMs = Math.round(performance.now() - start);
@@ -114,6 +115,16 @@ export async function runAllChecks() {
     };
     addPerformanceLog(log);
     results.performanceLogs.push(log);
+
+    // Auto-resolve old alerts when platform recovers
+    if (result.statusCode === 200) {
+      const existingAlerts = getSystemAlerts();
+      for (const alert of existingAlerts) {
+        if (!alert.resolved && alert.type === 'OUTAGE' && alert.platform === result.platform) {
+          resolveAlert(alert.id);
+        }
+      }
+    }
 
     if (result.statusCode !== 200 && result.statusCode !== 0) {
       const alert: SystemAlert = {
@@ -176,6 +187,16 @@ export async function runAllChecks() {
       };
       addSystemAlert(alert);
       results.alerts.push(alert);
+    }
+
+    // Auto-resolve old security/schema alerts when safe
+    if (securityCheck.isSafe && validation.valid) {
+      const existingAlerts = getSystemAlerts();
+      for (const alert of existingAlerts) {
+        if (!alert.resolved && (alert.type === 'SECURITY_BREACH' || alert.type === 'SCHEMA_MISMATCH')) {
+          resolveAlert(alert.id);
+        }
+      }
     }
 
     if (!securityCheck.isSafe) {
