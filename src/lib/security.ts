@@ -1,3 +1,7 @@
+// SecurityCheckResult is defined inline below
+import { auditCustomCss, auditCssVars } from './css-analyzer';
+import { sanitizeHtml, sanitizeExtensions } from './html-sanitizer';
+
 const MALICIOUS_PATTERNS: RegExp[] = [
   /<script\b[^>]*>[\s\S]*?<\/script>/gi,
   /javascript\s*:/gi,
@@ -15,12 +19,14 @@ const MALICIOUS_PATTERNS: RegExp[] = [
   /data\s*:\s*text\/html/gi,
 ];
 
-export interface SecurityCheckResult {
+export interface ExtendedSecurityResult {
   isSafe: boolean;
   flaggedReasons: string[];
+  cssAudit: { safe: boolean; issues: string[]; warnings: string[] };
+  htmlAudit: { modified: boolean; flagged: string[] };
 }
 
-function scanValue(value: unknown, path: string, results: SecurityCheckResult) {
+function scanValue(value: unknown, path: string, results: { isSafe: boolean; flaggedReasons: string[] }) {
   if (typeof value === 'string') {
     for (const pattern of MALICIOUS_PATTERNS) {
       if (pattern.test(value)) {
@@ -38,10 +44,34 @@ function scanValue(value: unknown, path: string, results: SecurityCheckResult) {
   }
 }
 
-export function scanForXSS(data: unknown): SecurityCheckResult {
-  const result: SecurityCheckResult = { isSafe: true, flaggedReasons: [] };
+export function scanForXSS(data: unknown): { isSafe: boolean; flaggedReasons: string[] } {
+  const result: { isSafe: boolean; flaggedReasons: string[] } = { isSafe: true, flaggedReasons: [] };
   scanValue(data, 'root', result);
   return result;
+}
+
+export function scanExtended(data: Record<string, unknown>): ExtendedSecurityResult {
+  const base = scanForXSS(data);
+  const cssAudit = auditCustomCss(data.customCss);
+  const cssVarsAudit = auditCssVars(data.cssVars as Record<string, string> | undefined);
+  const htmlAudit = sanitizeExtensions(data.extensions);
+
+  const allIssues = [
+    ...cssAudit.issues,
+    ...cssVarsAudit.issues,
+    ...htmlAudit.flagged,
+  ];
+
+  return {
+    isSafe: base.isSafe && cssAudit.safe && cssVarsAudit.safe,
+    flaggedReasons: [...base.flaggedReasons, ...allIssues],
+    cssAudit: {
+      safe: cssAudit.safe && cssVarsAudit.safe,
+      issues: [...cssAudit.issues, ...cssVarsAudit.issues],
+      warnings: [...cssAudit.warnings, ...cssVarsAudit.warnings],
+    },
+    htmlAudit,
+  };
 }
 
 export function sanitizeValue(value: unknown): unknown {

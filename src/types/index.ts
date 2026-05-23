@@ -6,6 +6,7 @@ export interface PerformanceLog {
   statusCode: number;
   latencyMs: number;
   dnsMs?: number;
+  region?: string;
   cacheStatus: 'HIT' | 'MISS' | 'BYPASS' | 'UNKNOWN';
   cacheControl?: string;
 }
@@ -41,6 +42,48 @@ export interface TodayJsonResponse {
   author?: string;
   available?: number;
   cssVars?: Record<string, string>;
+  customCss?: string;
+  extensions?: Array<Record<string, unknown>>;
   directory?: Array<Record<string, unknown>>;
   [key: string]: unknown;
 }
+
+export interface ProbeResult {
+  id: string;
+  timestamp: string;
+  region: string;
+  platform: string;
+  endpoint: string;
+  statusCode: number;
+  latencyMs: number;
+  tcpMs?: number;
+  dnsMs?: number;
+  tlsMs?: number;
+  error?: string;
+}
+
+export interface TelemetryEntry {
+  timestamp: string;
+  durationMs: number;
+  platform?: string;
+  region?: string;
+  userAgent?: string;
+}
+
+export interface HourlyAggregate {
+  hour: string;
+  platform: string;
+  avgLatencyMs: number;
+  maxLatencyMs: number;
+  minLatencyMs: number;
+  p95LatencyMs: number;
+  requestCount: number;
+  availabilityPct: number;
+  cacheHitRate: number;
+}
+
+export interface DailyAggregate extends Omit<HourlyAggregate, 'hour'> {
+  date: string;
+}
+
+export type AlertType = SystemAlert['type'];

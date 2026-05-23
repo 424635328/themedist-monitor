@@ -1,7 +1,8 @@
 import type { PerformanceLog, ThemeSnapshot, SystemAlert, TodayJsonResponse } from '@/types';
 import { validateTodayJson } from './validator';
-import { scanForXSS } from './security';
+import { scanExtended } from './security';
 import { addPerformanceLog, addThemeSnapshot, addSystemAlert } from './store';
+import { notifyAlert } from './notifier';
 
 const ENDPOINTS = {
   vercel: 'https://themedist.vercel.app/api/today.json',
@@ -55,24 +56,10 @@ async function checkEndpoint(platform: 'vercel' | 'netlify'): Promise<FetchResul
       data = null;
     }
 
-    return {
-      platform,
-      statusCode: response.status,
-      latencyMs,
-      cacheStatus,
-      cacheControl,
-      data,
-    };
+    return { platform, statusCode: response.status, latencyMs, cacheStatus, cacheControl, data };
   } catch (err) {
     const latencyMs = Math.round(performance.now() - start);
-    return {
-      platform,
-      statusCode: 0,
-      latencyMs,
-      cacheStatus: 'UNKNOWN',
-      error: (err as Error).message,
-      data: null,
-    };
+    return { platform, statusCode: 0, latencyMs, cacheStatus: 'UNKNOWN', error: (err as Error).message, data: null };
   }
 }
 
@@ -84,14 +71,8 @@ async function checkDiyEndpoint(): Promise<DiyFetchResult> {
     });
     const latencyMs = Math.round(performance.now() - start);
     let data: unknown;
-    try {
-      data = await response.json();
-    } catch {
-      data = null;
-    }
-    const isDegraded =
-      response.status !== 200 ||
-      (Array.isArray(data) && data.length === 0);
+    try { data = await response.json(); } catch { data = null; }
+    const isDegraded = response.status !== 200 || (Array.isArray(data) && data.length === 0);
     return { statusCode: response.status, latencyMs, data, isDegraded };
   } catch (err) {
     const latencyMs = Math.round(performance.now() - start);
@@ -109,9 +90,9 @@ export async function runAllChecks() {
     performanceLogs: PerformanceLog[];
     themeSnapshot: ThemeSnapshot | null;
     alerts: SystemAlert[];
-  } = { performanceLogs: [], themeSnapshot: null, alerts: [] };
+    notificationsSent: number;
+  } = { performanceLogs: [], themeSnapshot: null, alerts: [], notificationsSent: 0 };
 
-  // Check both platforms
   const [vercelResult, netlifyResult, diyResult] = await Promise.all([
     checkEndpoint('vercel'),
     checkEndpoint('netlify'),
@@ -135,9 +116,7 @@ export async function runAllChecks() {
 
     if (result.statusCode !== 200 && result.statusCode !== 0) {
       const alert: SystemAlert = {
-        id: generateId(),
-        timestamp: now,
-        type: 'OUTAGE',
+        id: generateId(), timestamp: now, type: 'OUTAGE',
         platform: result.platform,
         message: `${result.platform} returned status ${result.statusCode}`,
         details: `Endpoint: ${ENDPOINTS[result.platform]}, Response Time: ${result.latencyMs}ms`,
@@ -145,12 +124,12 @@ export async function runAllChecks() {
       };
       addSystemAlert(alert);
       results.alerts.push(alert);
+      const sent = await notifyAlert(alert);
+      if (sent) results.notificationsSent++;
     }
     if (result.error) {
       const alert: SystemAlert = {
-        id: generateId(),
-        timestamp: now,
-        type: 'OUTAGE',
+        id: generateId(), timestamp: now, type: 'OUTAGE',
         platform: result.platform,
         message: `${result.platform} unreachable: ${result.error}`,
         details: `Endpoint: ${ENDPOINTS[result.platform]}`,
@@ -158,14 +137,16 @@ export async function runAllChecks() {
       };
       addSystemAlert(alert);
       results.alerts.push(alert);
+      const sent = await notifyAlert(alert);
+      if (sent) results.notificationsSent++;
     }
   }
 
-  // Validate schema on Vercel data (primary)
+  // Validate and audit Vercel data (primary)
   const primaryData = vercelResult.data || netlifyResult.data;
   if (primaryData) {
     const validation = validateTodayJson(primaryData);
-    const securityCheck = scanForXSS(primaryData);
+    const securityCheck = scanExtended(primaryData as Record<string, unknown>);
 
     const themeData = primaryData as TodayJsonResponse;
     const snapshot: ThemeSnapshot = {
@@ -179,16 +160,14 @@ export async function runAllChecks() {
       validationErrors: validation.valid ? undefined : validation.errors,
       securityStatus: securityCheck.isSafe ? 'safe' : 'unsafe',
       flaggedReasons: securityCheck.isSafe ? undefined : securityCheck.flaggedReasons,
-      rawData: themeData as Record<string, unknown>,
+      rawData: primaryData as Record<string, unknown>,
     };
     addThemeSnapshot(snapshot);
     results.themeSnapshot = snapshot;
 
     if (!validation.valid) {
       const alert: SystemAlert = {
-        id: generateId(),
-        timestamp: now,
-        type: 'SCHEMA_MISMATCH',
+        id: generateId(), timestamp: now, type: 'SCHEMA_MISMATCH',
         platform: 'both',
         message: 'Schema validation failed for /api/today.json',
         details: validation.errors.join('; '),
@@ -200,25 +179,23 @@ export async function runAllChecks() {
 
     if (!securityCheck.isSafe) {
       const alert: SystemAlert = {
-        id: generateId(),
-        timestamp: now,
-        type: 'SECURITY_BREACH',
+        id: generateId(), timestamp: now, type: 'SECURITY_BREACH',
         platform: 'both',
-        message: 'Security threat detected in today\'s theme!',
+        message: "Security threat detected in today's theme!",
         details: securityCheck.flaggedReasons.join('; '),
         resolved: false,
       };
       addSystemAlert(alert);
       results.alerts.push(alert);
+      const sent = await notifyAlert(alert);
+      if (sent) results.notificationsSent++;
     }
   }
 
   // Check DB health via DIY endpoint
   if (diyResult.isDegraded && diyResult.statusCode === 200) {
     const alert: SystemAlert = {
-      id: generateId(),
-      timestamp: now,
-      type: 'DB_DOWN',
+      id: generateId(), timestamp: now, type: 'DB_DOWN',
       platform: 'system',
       message: 'DIY themes endpoint returned empty results — possible Redis degradation',
       details: `Status: ${diyResult.statusCode}, Latency: ${diyResult.latencyMs}ms`,
@@ -226,13 +203,13 @@ export async function runAllChecks() {
     };
     addSystemAlert(alert);
     results.alerts.push(alert);
+    const sent = await notifyAlert(alert);
+    if (sent) results.notificationsSent++;
   }
 
   if (diyResult.error) {
     const alert: SystemAlert = {
-      id: generateId(),
-      timestamp: now,
-      type: 'DB_DOWN',
+      id: generateId(), timestamp: now, type: 'DB_DOWN',
       platform: 'system',
       message: 'DIY themes endpoint unreachable',
       details: diyResult.error,
@@ -240,6 +217,8 @@ export async function runAllChecks() {
     };
     addSystemAlert(alert);
     results.alerts.push(alert);
+    const sent = await notifyAlert(alert);
+    if (sent) results.notificationsSent++;
   }
 
   return results;

@@ -32,3 +32,13 @@ Thumbs.db
 data/
 Launcher.bat
 s.bat
+
+# claude
+.claude/
+
+# build artifacts
+*.tsbuildinfo
+
+# vercel
+.vercel
+.env*.local
