@@ -11,7 +11,7 @@ const KV_ZSET_THEME = 'zset:theme';
 const KV_LIST_ALERTS = 'list:alerts';
 const KV_HASH_STATUS = 'hash:status';
 
-interface PerfLog { platform: string; statusCode: number; latencyMs: number; cacheStatus: string; timestamp: string; }
+interface PerfLog { platform: string; statusCode: number; latencyMs: number; cacheStatus: string; timestamp: string; error?: string; }
 interface ThemeSnap { date: string; presetName: string; themeCount: number; securityStatus: string; }
 
 export async function GET() {
@@ -86,11 +86,13 @@ export async function GET() {
         status: vercelStatus,
         latencyMs: vercelLatest?.latencyMs ?? null,
         cacheStatus: vercelLatest?.cacheStatus ?? 'UNKNOWN',
+        error: vercelLatest?.error ?? null,
       },
       netlify: {
         status: netlifyStatus,
         latencyMs: netlifyLatest?.latencyMs ?? null,
         cacheStatus: netlifyLatest?.cacheStatus ?? 'UNKNOWN',
+        error: netlifyLatest?.error ?? null,
       },
     },
     theme: latestSnapshot

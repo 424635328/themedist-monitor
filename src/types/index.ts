@@ -9,6 +9,7 @@ export interface PerformanceLog {
   region?: string;
   cacheStatus: 'HIT' | 'MISS' | 'BYPASS' | 'UNKNOWN';
   cacheControl?: string;
+  error?: string;
 }
 
 export interface ThemeSnapshot {

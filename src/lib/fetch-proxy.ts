@@ -43,6 +43,8 @@ export async function fetchWithProxy(url: string, init?: RequestInit): Promise<R
     return fetch(url, init);
   }
 
+  console.log(`[fetch-proxy] using proxy ${proxyUrl} for ${new URL(url).hostname}`);
+
   const parsed = new URL(url);
   const isHttps = parsed.protocol === 'https:';
   const mod = isHttps ? https : http;

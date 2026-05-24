@@ -80,7 +80,9 @@ async function checkEndpoint(platform: 'vercel' | 'netlify'): Promise<FetchResul
     return { platform, statusCode: response.status, latencyMs, cacheStatus, cacheControl, data };
   } catch (err) {
     const latencyMs = Math.round(performance.now() - start);
-    return { platform, statusCode: 0, latencyMs, cacheStatus: 'UNKNOWN', error: (err as Error).message, data: null };
+    const errorMsg = (err as Error).message;
+    console.error(`[monitor] ${platform} fetch failed (${latencyMs}ms): ${errorMsg} | url=${bustUrl}`);
+    return { platform, statusCode: 0, latencyMs, cacheStatus: 'UNKNOWN', error: errorMsg, data: null };
   }
 }
 
@@ -97,7 +99,9 @@ async function checkDiyEndpoint(): Promise<DiyFetchResult> {
     return { statusCode: response.status, latencyMs, data, isDegraded };
   } catch (err) {
     const latencyMs = Math.round(performance.now() - start);
-    return { statusCode: 0, latencyMs, data: null, isDegraded: true, error: (err as Error).message };
+    const errorMsg = (err as Error).message;
+    console.error(`[monitor] diy fetch failed (${latencyMs}ms): ${errorMsg} | url=${ENDPOINTS.diy}`);
+    return { statusCode: 0, latencyMs, data: null, isDegraded: true, error: errorMsg };
   }
 }
 
@@ -131,6 +135,7 @@ export async function runAllChecks() {
       latencyMs: result.latencyMs,
       cacheStatus: result.cacheStatus,
       cacheControl: result.cacheControl,
+      error: result.error,
     };
     await addPerformanceLog(log);
     results.performanceLogs.push(log);
