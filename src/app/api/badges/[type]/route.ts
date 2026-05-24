@@ -42,17 +42,31 @@ const statusColor: Record<string, string> = {
 };
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: { type: string } }
 ) {
   const { type } = params;
+  const isDebug = new URL(request.url).searchParams.has('debug');
 
-  // Read the same data sources used by /api/data for consistency
   const [logs, snapshots, alerts] = await Promise.all([
     getPerformanceLogs(),
     getThemeSnapshots(),
     getSystemAlerts(),
   ]);
+
+  if (isDebug) {
+    return new Response(JSON.stringify({
+      type,
+      logsCount: logs.length,
+      latestVercel: [...logs].reverse().find((l: { platform: string }) => l.platform === 'vercel') || null,
+      latestNetlify: [...logs].reverse().find((l: { platform: string }) => l.platform === 'netlify') || null,
+      snapshotsCount: snapshots.length,
+      latestSnapshot: snapshots.length > 0 ? snapshots[snapshots.length - 1].presetName : null,
+      alertsCount: alerts.length,
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    });
+  }
 
   const latestVercel = [...logs].reverse().find((l: { platform: string }) => l.platform === 'vercel');
   const latestNetlify = [...logs].reverse().find((l: { platform: string }) => l.platform === 'netlify');
