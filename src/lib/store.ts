@@ -2,7 +2,7 @@ import type { PerformanceLog, ThemeSnapshot, SystemAlert } from '@/types';
 import fs from 'fs';
 import path from 'path';
 import {
-  kvList, kvPush, kvZadd, kvZrangebyscore, kvZremrangebyscore,
+  kvGet, kvSet, kvList, kvPush, kvZadd, kvZrangebyscore, kvZremrangebyscore,
   kvLpush, kvLtrim, kvLrange, kvDelete,
   kvHset, kvHgetall,
   isKvConfigured,
@@ -19,6 +19,7 @@ const ALERTS_FILE = path.join(DATA_DIR, 'system-alerts.json');
 const KV_ZSET_PERF = 'zset:perf';
 const KV_ZSET_THEME = 'zset:theme';
 const KV_LIST_ALERTS = 'list:alerts';
+const KV_STR_ALERTS = 'store:alerts'; // string-based fallback (avoids kvLrange bug)
 const KV_HASH_STATUS = 'hash:status';
 
 function ensureDataDir() {
@@ -107,23 +108,46 @@ export async function addThemeSnapshot(snapshot: ThemeSnapshot) {
 
 export async function getSystemAlerts(): Promise<SystemAlert[]> {
   if (isKvConfigured()) {
-    const items = await kvLrange(KV_LIST_ALERTS, 0, 200);
-    const alerts: SystemAlert[] = [];
-    for (const item of items) {
+    // Use string-based JSON storage (kvGet/kvSet work reliably in Vercel bundled
+    // context, unlike kvLrange which has known issues with @upstash/redis v1.38)
+    const stored = await kvGet<string>(KV_STR_ALERTS, '');
+    if (stored) {
       try {
-        const alert = (typeof item === 'string' ? JSON.parse(item) : item) as SystemAlert;
-        alerts.push(alert);
-      } catch { /* skip corrupt entries */ }
+        const alerts = JSON.parse(stored) as SystemAlert[];
+        if (Array.isArray(alerts)) return alerts;
+      } catch { /* corrupt data, fall through */ }
     }
-    return alerts;
+    // Fallback: try list-based storage (legacy data)
+    const items = await kvLrange(KV_LIST_ALERTS, 0, 200);
+    if (items.length > 0) {
+      const alerts: SystemAlert[] = [];
+      for (const item of items) {
+        try {
+          alerts.push((typeof item === 'string' ? JSON.parse(item) : item) as SystemAlert);
+        } catch { /* skip corrupt entries */ }
+      }
+      return alerts;
+    }
+    return [];
   }
   return readJSON<SystemAlert[]>(ALERTS_FILE, []);
 }
 
 export async function addSystemAlert(alert: SystemAlert) {
   if (isKvConfigured()) {
+    // Write via string-based JSON (kvGet/kvSet work, kvLpush might not)
+    const stored = await kvGet<string>(KV_STR_ALERTS, '');
+    let alerts: SystemAlert[] = [];
+    if (stored) {
+      try { alerts = JSON.parse(stored) as SystemAlert[]; } catch { /* reset */ }
+    }
+    if (!Array.isArray(alerts)) alerts = [];
+    alerts.push(alert);
+    if (alerts.length > 200) alerts = alerts.slice(-200);
+    await kvSet(KV_STR_ALERTS, JSON.stringify(alerts));
+
+    // Also write via list for backward compatibility
     await kvLpush(KV_LIST_ALERTS, JSON.stringify(alert));
-    // Cap at 200 entries
     await kvLtrim(KV_LIST_ALERTS, 0, 199);
     return;
   }
@@ -135,7 +159,22 @@ export async function addSystemAlert(alert: SystemAlert) {
 
 export async function resolveAlert(alertId: string) {
   if (isKvConfigured()) {
-    // With List storage, we need to rebuild with resolved flag
+    // Resolve via string-based JSON storage
+    const stored = await kvGet<string>(KV_STR_ALERTS, '');
+    let alerts: SystemAlert[] = [];
+    if (stored) {
+      try { alerts = JSON.parse(stored) as SystemAlert[]; } catch { /* reset */ }
+    }
+    if (!Array.isArray(alerts)) alerts = [];
+    let resolved = false;
+    for (const a of alerts) {
+      if (a.id === alertId) { a.resolved = true; resolved = true; }
+    }
+    if (resolved) {
+      await kvSet(KV_STR_ALERTS, JSON.stringify(alerts));
+    }
+
+    // Also resolve via list storage for backward compatibility
     const items = await kvLrange(KV_LIST_ALERTS, 0, 199);
     const updated: string[] = [];
     for (const item of items) {
@@ -147,7 +186,6 @@ export async function resolveAlert(alertId: string) {
         updated.push(item);
       }
     }
-    // Rebuild list: delete and re-push
     await kvDelete(KV_LIST_ALERTS);
     for (let i = updated.length - 1; i >= 0; i--) {
       await kvLpush(KV_LIST_ALERTS, updated[i]);
