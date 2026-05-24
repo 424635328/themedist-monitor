@@ -53,7 +53,7 @@ export async function getPerformanceLogs(): Promise<PerformanceLog[]> {
     const logs: PerformanceLog[] = [];
     for (const m of members) {
       try {
-        logs.push(JSON.parse(m.member) as PerformanceLog);
+        logs.push(JSON.parse(m) as PerformanceLog);
       } catch { /* skip corrupt entries */ }
     }
     return logs;
@@ -83,7 +83,7 @@ export async function getThemeSnapshots(): Promise<ThemeSnapshot[]> {
     const snapshots: ThemeSnapshot[] = [];
     for (const m of members) {
       try {
-        snapshots.push(JSON.parse(m.member) as ThemeSnapshot);
+        snapshots.push(JSON.parse(m) as ThemeSnapshot);
       } catch { /* skip corrupt entries */ }
     }
     return snapshots;
@@ -210,7 +210,7 @@ export async function getMetricsHistory(
   const entries: MetricsEntry[] = [];
   for (const m of members) {
     try {
-      entries.push(JSON.parse(m.member) as MetricsEntry);
+      entries.push(JSON.parse(m) as MetricsEntry);
     } catch { /* skip corrupt entries */ }
   }
   return entries;

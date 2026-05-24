@@ -104,8 +104,6 @@ export async function kvHincrby(key: string, field: string, increment: number): 
 
 // --- Sorted Set operations ---
 
-interface ZMember { score: number; member: string; }
-
 export async function kvZadd(key: string, member: string, score: number): Promise<void> {
   if (!isKvConfigured()) return;
   try {
@@ -115,13 +113,12 @@ export async function kvZadd(key: string, member: string, score: number): Promis
   }
 }
 
-export async function kvZrangebyscore(key: string, min: number, max: number, limit = 200): Promise<ZMember[]> {
+export async function kvZrangebyscore(key: string, min: number, max: number, limit = 200): Promise<string[]> {
   if (!isKvConfigured()) return [];
   try {
-    // byScore + withScores returns array of { score, member }
-    const result = await getClient().zrange(key, min, max, { byScore: true, offset: 0, count: limit, withScores: true });
+    const result = await getClient().zrange(key, min, max, { byScore: true, offset: 0, count: limit });
     if (!Array.isArray(result)) return [];
-    return result as unknown as ZMember[];
+    return result as string[];
   } catch {
     return [];
   }
