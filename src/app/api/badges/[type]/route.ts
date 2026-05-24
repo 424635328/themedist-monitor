@@ -55,21 +55,24 @@ export async function GET(
   ]);
 
   if (isDebug) {
+    const recentLogs = logs.slice(-4);
     return new Response(JSON.stringify({
       type,
       logsCount: logs.length,
-      latestVercel: [...logs].reverse().find((l: { platform: string }) => l.platform === 'vercel') || null,
-      latestNetlify: [...logs].reverse().find((l: { platform: string }) => l.platform === 'netlify') || null,
+      recentLogsCount: recentLogs.length,
+      latestVercel: recentLogs.find((l: { platform: string }) => l.platform === 'vercel') || null,
+      latestNetlify: recentLogs.find((l: { platform: string }) => l.platform === 'netlify') || null,
       snapshotsCount: snapshots.length,
-      latestSnapshot: snapshots.length > 0 ? snapshots[snapshots.length - 1].presetName : null,
       alertsCount: alerts.length,
     }, null, 2), {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     });
   }
 
-  const latestVercel = [...logs].reverse().find((l: { platform: string }) => l.platform === 'vercel');
-  const latestNetlify = [...logs].reverse().find((l: { platform: string }) => l.platform === 'netlify');
+  // Match /api/data logic: scan last 4 logs only (same window)
+  const recentLogs = logs.slice(-4);
+  const latestVercel = recentLogs.find((l: { platform: string }) => l.platform === 'vercel');
+  const latestNetlify = recentLogs.find((l: { platform: string }) => l.platform === 'netlify');
 
   function platformStatus(log: typeof latestVercel): string {
     if (!log) return 'no_data';
