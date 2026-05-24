@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { kvPush } from '@/lib/kv';
-import type { TelemetryEntry } from '@/types';
+import { kvHincrby, kvHset, isKvConfigured } from '@/lib/kv';
+
+const KEY_TOTAL_REQUESTS = 'rum:counters';
+const KEY_LATENCY_BINS = 'rum:latency_bins';
+const TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
+
+function getLatencyBin(ms: number): string {
+  if (ms <= 100) return '0-100';
+  if (ms <= 250) return '101-250';
+  if (ms <= 500) return '251-500';
+  if (ms <= 1000) return '501-1000';
+  if (ms <= 2000) return '1001-2000';
+  return '2001+';
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,16 +23,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid duration' }, { status: 400 });
     }
 
-    const entry: TelemetryEntry = {
-      timestamp: new Date().toISOString(),
-      durationMs: Math.round(duration),
-      platform: body.platform,
-      region: request.headers.get('x-vercel-ip-country') || undefined,
-      userAgent: request.headers.get('user-agent')?.slice(0, 100) || undefined,
-    };
+    if (!isKvConfigured()) {
+      return NextResponse.json({ ok: true });
+    }
 
-    // Don't await — fire and forget to minimize impact on the client
-    kvPush<TelemetryEntry>('rum:telemetry', entry);
+    const platform = body.platform || 'unknown';
+    const latencyBin = getLatencyBin(Math.round(duration));
+    const dateKey = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+    // Atomic increments — no raw entry storage, minimal KV ops
+    // Fire and forget the writes
+    Promise.all([
+      kvHincrby(KEY_TOTAL_REQUESTS, `${platform}:${dateKey}:total`, 1),
+      kvHincrby(KEY_TOTAL_REQUESTS, `${platform}:${dateKey}:ok`, duration < 2000 ? 1 : 0),
+      kvHincrby(KEY_TOTAL_REQUESTS, `${platform}:${dateKey}:sum_latency`, Math.round(duration)),
+      kvHincrby(KEY_LATENCY_BINS, `${platform}:${dateKey}:${latencyBin}`, 1),
+    ]);
 
     return NextResponse.json({ ok: true });
   } catch {

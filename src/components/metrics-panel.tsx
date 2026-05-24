@@ -13,6 +13,7 @@ interface MetricsData {
   avgLatency24h: { vercel: number; netlify: number };
   cdnHitRate: number;
   themeCount: number;
+  sla: { vercel: { d7: number; d30: number }; netlify: { d7: number; d30: number } };
 }
 
 interface PerfLog {
@@ -119,6 +120,47 @@ export default function MetricsPanel() {
           <Layers className="w-4 h-4 text-purple-400 mx-auto mb-1" />
           <div className="text-lg font-bold text-white">{metrics.themeCount}</div>
           <div className="text-xs text-zinc-500">{t('metrics.themes')}</div>
+        </div>
+      </div>
+
+      {/* SLA Uptime */}
+      <div className="mb-6">
+        <div className="text-xs text-zinc-500 mb-2">SLA 可用率</div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-[#1a1a22] rounded-lg p-3">
+            <div className="text-xs text-zinc-500 mb-1">Vercel</div>
+            <div className="flex items-end gap-3">
+              <div>
+                <div className="text-[10px] text-zinc-600">7 天</div>
+                <div className={`text-lg font-bold ${metrics.sla.vercel.d7 >= 99.9 ? 'text-green-400' : metrics.sla.vercel.d7 >= 99 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {metrics.sla.vercel.d7}%
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-zinc-600">30 天</div>
+                <div className={`text-lg font-bold ${metrics.sla.vercel.d30 >= 99.9 ? 'text-green-400' : metrics.sla.vercel.d30 >= 99 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {metrics.sla.vercel.d30}%
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="bg-[#1a1a22] rounded-lg p-3">
+            <div className="text-xs text-zinc-500 mb-1">Netlify</div>
+            <div className="flex items-end gap-3">
+              <div>
+                <div className="text-[10px] text-zinc-600">7 天</div>
+                <div className={`text-lg font-bold ${metrics.sla.netlify.d7 >= 99.9 ? 'text-green-400' : metrics.sla.netlify.d7 >= 99 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {metrics.sla.netlify.d7}%
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-zinc-600">30 天</div>
+                <div className={`text-lg font-bold ${metrics.sla.netlify.d30 >= 99.9 ? 'text-green-400' : metrics.sla.netlify.d30 >= 99 ? 'text-yellow-400' : 'text-red-400'}`}>
+                  {metrics.sla.netlify.d30}%
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

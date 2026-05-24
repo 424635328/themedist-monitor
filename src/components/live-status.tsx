@@ -15,6 +15,7 @@ export default function LiveStatus() {
   const [netlify, setNetlify] = useState<StatusInfo>({ status: 'checking', latencyMs: null });
   const [db, setDb] = useState<string>('checking');
   const [loading, setLoading] = useState(true);
+  const [dataTimestamp, setDataTimestamp] = useState<string | null>(null);
 
   async function fetchStatus() {
     setLoading(true);
@@ -24,6 +25,7 @@ export default function LiveStatus() {
       setVercel(data.status.vercel);
       setNetlify(data.status.netlify);
       setDb(data.status.db);
+      setDataTimestamp(data.timestamp);
     } catch {
       setVercel({ status: 'error', latencyMs: null });
       setNetlify({ status: 'error', latencyMs: null });
@@ -35,7 +37,7 @@ export default function LiveStatus() {
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 60000);
+    const interval = setInterval(fetchStatus, 5 * 60 * 1000); // poll every 5 min
     return () => clearInterval(interval);
   }, []);
 
@@ -67,12 +69,25 @@ export default function LiveStatus() {
     return '';
   }
 
+  function formatAgo(iso: string): string {
+    const ms = Date.now() - new Date(iso).getTime();
+    const minutes = Math.floor(ms / 60000);
+    if (minutes < 1) return t('liveStatus.justNow');
+    if (minutes < 60) return `${minutes}${t('liveStatus.minAgo')}`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}${t('liveStatus.hourAgo')}`;
+    return `${Math.floor(hours / 24)}${t('liveStatus.dayAgo')}`;
+  }
+
   return (
     <div className="card animate-fade-in">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Activity className="w-4 h-4 text-zinc-400" />
           <h2 className="text-sm font-semibold text-white">{t('liveStatus.title')}</h2>
+          {dataTimestamp && (
+            <span className="text-[10px] text-zinc-600">{formatAgo(dataTimestamp)}</span>
+          )}
         </div>
         <button
           onClick={fetchStatus}

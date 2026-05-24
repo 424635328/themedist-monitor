@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Play, RefreshCw } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Play, RefreshCw, BookOpen } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import LiveStatus from '@/components/live-status';
 import MetricsPanel from '@/components/metrics-panel';
@@ -15,8 +15,12 @@ export default function Home() {
   const [lastRun, setLastRun] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [isAlert, setIsAlert] = useState(false);
+  const debounceRef = useRef(0);
 
   async function runMonitor() {
+    const now = Date.now();
+    if (running || now - debounceRef.current < 3000) return;
+    debounceRef.current = now;
     setRunning(true);
     setMessage('');
     setIsAlert(false);
@@ -48,6 +52,13 @@ export default function Home() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <a
+            href="/api-docs"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium text-white bg-purple-600 hover:bg-purple-500 transition-colors"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            API Docs
+          </a>
           {lastRun && (
             <span className="text-xs text-zinc-600">{t('page.lastRun')}{lastRun}</span>
           )}

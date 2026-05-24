@@ -4,7 +4,7 @@ import { getThemeSnapshots } from '@/lib/store';
 export const revalidate = 300; // 5 min CDN cache
 
 export async function GET() {
-  const snapshots = getThemeSnapshots();
+  const snapshots = await getThemeSnapshots();
   const latest = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
 
   if (!latest) {

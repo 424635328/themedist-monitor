@@ -29,6 +29,10 @@ const translations = {
     'liveStatus.unknown': '未知',
     'liveStatus.database': '数据库',
     'liveStatus.redis': 'Redis / API',
+	    'liveStatus.justNow': '刚刚更新',
+	    'liveStatus.minAgo': '分钟前更新',
+	    'liveStatus.hourAgo': '小时前更新',
+	    'liveStatus.dayAgo': '天前更新',
 
     'metrics.title': '核心指标',
     'metrics.loading': '加载中...',
@@ -111,6 +115,10 @@ const translations = {
     'liveStatus.unknown': 'Unknown',
     'liveStatus.database': 'Database',
     'liveStatus.redis': 'Redis / API',
+	    'liveStatus.justNow': 'Updated just now',
+	    'liveStatus.minAgo': 'min ago',
+	    'liveStatus.hourAgo': 'h ago',
+	    'liveStatus.dayAgo': 'd ago',
 
     'metrics.title': 'Metrics',
     'metrics.loading': 'Loading metrics...',

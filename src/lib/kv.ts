@@ -11,7 +11,7 @@ function getClient() {
   return client;
 }
 
-function isKvConfigured(): boolean {
+export function isKvConfigured(): boolean {
   return !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
 }
 
@@ -25,12 +25,16 @@ export async function kvGet<T>(key: string, fallback: T): Promise<T> {
   }
 }
 
-export async function kvSet<T>(key: string, value: T): Promise<void> {
-  if (!isKvConfigured()) return;
+interface KvSetOptions { nx?: boolean; ex?: number; }
+
+export async function kvSet<T>(key: string, value: T, options?: KvSetOptions): Promise<boolean> {
+  if (!isKvConfigured()) return false;
   try {
-    await getClient().set(key, value);
+    const result: unknown = await getClient().set(key, value, options as Record<string, unknown>);
+    // NX option returns null when key already exists
+    return result !== null;
   } catch {
-    // silently fail if KV is unavailable
+    return false;
   }
 }
 
@@ -57,5 +61,98 @@ export async function kvDelete(key: string): Promise<void> {
     await getClient().del(key);
   } catch {
     // silently fail
+  }
+}
+
+// --- Hash operations ---
+
+export async function kvHget<T>(key: string, field: string): Promise<T | null> {
+  if (!isKvConfigured()) return null;
+  try {
+    return await getClient().hget<T>(key, field);
+  } catch {
+    return null;
+  }
+}
+
+export async function kvHgetall<T extends Record<string, unknown>>(key: string): Promise<T | null> {
+  if (!isKvConfigured()) return null;
+  try {
+    return await getClient().hgetall<T>(key);
+  } catch {
+    return null;
+  }
+}
+
+export async function kvHset(key: string, field: string, value: unknown): Promise<void> {
+  if (!isKvConfigured()) return;
+  try {
+    await getClient().hset(key, { [field]: value });
+  } catch {
+    // silently fail
+  }
+}
+
+export async function kvHincrby(key: string, field: string, increment: number): Promise<number> {
+  if (!isKvConfigured()) return increment;
+  try {
+    return await getClient().hincrby(key, field, increment);
+  } catch {
+    return increment;
+  }
+}
+
+// --- Sorted Set operations ---
+
+interface ZMember { score: number; member: string; }
+
+export async function kvZadd(key: string, member: string, score: number): Promise<void> {
+  if (!isKvConfigured()) return;
+  try {
+    await getClient().zadd(key, { score, member });
+  } catch {
+    // silently fail
+  }
+}
+
+export async function kvZrangebyscore(key: string, min: number, max: number, limit = 200): Promise<ZMember[]> {
+  if (!isKvConfigured()) return [];
+  try {
+    // @vercel/kv zrange with byScore option returns array of { score, member }
+    const result = await getClient().zrange(key, min, max, { byScore: true, offset: 0, count: limit });
+    if (!Array.isArray(result)) return [];
+    return result as unknown as ZMember[];
+  } catch {
+    return [];
+  }
+}
+
+// --- List operations (capped logs) ---
+
+export async function kvLpush(key: string, value: string): Promise<void> {
+  if (!isKvConfigured()) return;
+  try {
+    await getClient().lpush(key, value);
+  } catch {
+    // silently fail
+  }
+}
+
+export async function kvLtrim(key: string, start: number, stop: number): Promise<void> {
+  if (!isKvConfigured()) return;
+  try {
+    await getClient().ltrim(key, start, stop);
+  } catch {
+    // silently fail
+  }
+}
+
+export async function kvLrange(key: string, start: number, stop: number): Promise<string[]> {
+  if (!isKvConfigured()) return [];
+  try {
+    const result = await getClient().lrange(key, start, stop);
+    return Array.isArray(result) ? result as string[] : [];
+  } catch {
+    return [];
   }
 }

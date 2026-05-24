@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 interface ProbeResult {
   url: string;
@@ -9,6 +10,13 @@ interface ProbeResult {
 }
 
 export async function GET() {
+  const rl = await checkRateLimit('diagnose');
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limited', retryAfter: rl.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } }
+    );
+  }
   const probeResults: ProbeResult[] = [];
 
   // Test urls: themedist + a known-good Chinese site + httpbin

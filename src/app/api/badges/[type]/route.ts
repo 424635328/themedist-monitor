@@ -5,19 +5,21 @@ function svgBadge(label: string, value: string, color: string): string {
   const labelWidth = label.length * 8 + 14;
   const valueWidth = value.length * 8 + 14;
   const totalWidth = labelWidth + valueWidth;
+  // Unique suffix prevents SVG id collisions when multiple badges on same page
+  const uid = Math.random().toString(36).slice(2, 8);
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="20">
-  <linearGradient id="b" x2="0" y2="100%">
+  <linearGradient id="b-${uid}" x2="0" y2="100%">
     <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
     <stop offset="1" stop-opacity=".1"/>
   </linearGradient>
-  <clipPath id="r">
+  <clipPath id="r-${uid}">
     <rect width="${totalWidth}" height="20" rx="3" fill="#fff"/>
   </clipPath>
-  <g clip-path="url(#r)">
+  <g clip-path="url(#r-${uid})">
     <rect width="${labelWidth}" height="20" fill="#555"/>
     <rect x="${labelWidth}" width="${valueWidth}" height="20" fill="${color}"/>
-    <rect width="${totalWidth}" height="20" fill="url(#b)"/>
+    <rect width="${totalWidth}" height="20" fill="url(#b-${uid})"/>
   </g>
   <g fill="#fff" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
     <text x="${labelWidth / 2}" y="15" fill="#010101" fill-opacity=".3" text-anchor="middle">${escapeXml(label)}</text>
@@ -37,9 +39,9 @@ export async function GET(
   { params }: { params: { type: string } }
 ) {
   const { type } = params;
-  const logs = getPerformanceLogs();
-  const snapshots = getThemeSnapshots();
-  const alerts = getSystemAlerts();
+  const logs = await getPerformanceLogs();
+  const snapshots = await getThemeSnapshots();
+  const alerts = await getSystemAlerts();
 
   const latestLogs = logs.slice(-4);
 
@@ -101,15 +103,24 @@ export async function GET(
       color = parseFloat(uptime as string) > 99 ? '#4c1' : parseFloat(uptime as string) > 95 ? '#dfb317' : '#e05d44';
       break;
     }
-    default:
-      return NextResponse.json({ error: 'Unknown badge type' }, { status: 404 });
+    default: {
+      const svg = svgBadge('Badge', 'Unknown Type', '#9f9f9f');
+      return new NextResponse(svg, {
+        headers: {
+          'Content-Type': 'image/svg+xml',
+          'Cache-Control': 'public, s-maxage=60',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    }
   }
 
   const svg = svgBadge(label, value, color);
   return new NextResponse(svg, {
     headers: {
       'Content-Type': 'image/svg+xml',
-      'Cache-Control': 'no-cache, max-age=0',
+      'Cache-Control': 'public, max-age=300, s-maxage=600, stale-while-revalidate=1200',
+      'Access-Control-Allow-Origin': '*',
     },
   });
 }

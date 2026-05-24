@@ -5,6 +5,23 @@ import { addPerformanceLog, addThemeSnapshot, addSystemAlert } from './store';
 import { notifyAlert } from './notifier';
 import { fetchWithProxy } from './fetch-proxy';
 import { resolveAlert, getSystemAlerts } from './store';
+import { kvGet, kvSet, kvHset, isKvConfigured } from './kv';
+
+const FAILURE_THRESHOLD = 3; // consecutive failures before alerting
+
+async function trackFailure(platform: string, alertType: string): Promise<number> {
+  if (!isKvConfigured()) return FAILURE_THRESHOLD; // no KV = always alert
+  const key = `failure:${platform}:${alertType}`;
+  const count = await kvGet<number>(key, 0);
+  const next = count + 1;
+  await kvSet(key, next);
+  return next;
+}
+
+async function resetFailure(platform: string, alertType: string) {
+  if (!isKvConfigured()) return;
+  await kvSet(`failure:${platform}:${alertType}`, 0);
+}
 
 const ENDPOINTS = {
   vercel: 'https://themedist.vercel.app/api/today.json',
@@ -113,44 +130,54 @@ export async function runAllChecks() {
       cacheStatus: result.cacheStatus,
       cacheControl: result.cacheControl,
     };
-    addPerformanceLog(log);
+    await addPerformanceLog(log);
     results.performanceLogs.push(log);
 
     // Auto-resolve old alerts when platform recovers
     if (result.statusCode === 200) {
-      const existingAlerts = getSystemAlerts();
+      const existingAlerts = await getSystemAlerts();
       for (const alert of existingAlerts) {
         if (!alert.resolved && alert.type === 'OUTAGE' && alert.platform === result.platform) {
-          resolveAlert(alert.id);
+          await resolveAlert(alert.id);
         }
       }
     }
 
     if (result.statusCode !== 200 && result.statusCode !== 0) {
-      const alert: SystemAlert = {
-        id: generateId(), timestamp: now, type: 'OUTAGE',
-        platform: result.platform,
-        message: `${result.platform} returned status ${result.statusCode}`,
-        details: `Endpoint: ${ENDPOINTS[result.platform]}, Response Time: ${result.latencyMs}ms`,
-        resolved: false,
-      };
-      addSystemAlert(alert);
-      results.alerts.push(alert);
-      const sent = await notifyAlert(alert);
-      if (sent) results.notificationsSent++;
+      const count = await trackFailure(result.platform, 'OUTAGE');
+      if (count >= FAILURE_THRESHOLD) {
+        const alert: SystemAlert = {
+          id: generateId(), timestamp: now, type: 'OUTAGE',
+          platform: result.platform,
+          message: `${result.platform} returned status ${result.statusCode} (failure #${count})`,
+          details: `Endpoint: ${ENDPOINTS[result.platform]}, Response Time: ${result.latencyMs}ms`,
+          resolved: false,
+        };
+        await addSystemAlert(alert);
+        results.alerts.push(alert);
+        const sent = await notifyAlert(alert);
+        if (sent) results.notificationsSent++;
+      }
     }
     if (result.error) {
-      const alert: SystemAlert = {
-        id: generateId(), timestamp: now, type: 'OUTAGE',
-        platform: result.platform,
-        message: `${result.platform} unreachable: ${result.error}`,
-        details: `Endpoint: ${ENDPOINTS[result.platform]}`,
-        resolved: false,
-      };
-      addSystemAlert(alert);
-      results.alerts.push(alert);
-      const sent = await notifyAlert(alert);
-      if (sent) results.notificationsSent++;
+      const count = await trackFailure(result.platform, 'OUTAGE');
+      if (count >= FAILURE_THRESHOLD) {
+        const alert: SystemAlert = {
+          id: generateId(), timestamp: now, type: 'OUTAGE',
+          platform: result.platform,
+          message: `${result.platform} unreachable: ${result.error} (failure #${count})`,
+          details: `Endpoint: ${ENDPOINTS[result.platform]}`,
+          resolved: false,
+        };
+        await addSystemAlert(alert);
+        results.alerts.push(alert);
+        const sent = await notifyAlert(alert);
+        if (sent) results.notificationsSent++;
+      }
+    }
+    // Reset failure counter on successful response
+    if (result.statusCode === 200) {
+      await resetFailure(result.platform, 'OUTAGE');
     }
   }
 
@@ -174,7 +201,7 @@ export async function runAllChecks() {
       flaggedReasons: securityCheck.isSafe ? undefined : securityCheck.flaggedReasons,
       rawData: primaryData as Record<string, unknown>,
     };
-    addThemeSnapshot(snapshot);
+    await addThemeSnapshot(snapshot);
     results.themeSnapshot = snapshot;
 
     if (!validation.valid) {
@@ -185,16 +212,16 @@ export async function runAllChecks() {
         details: validation.errors.join('; '),
         resolved: false,
       };
-      addSystemAlert(alert);
+      await addSystemAlert(alert);
       results.alerts.push(alert);
     }
 
     // Auto-resolve old security/schema alerts when safe
     if (securityCheck.isSafe && validation.valid) {
-      const existingAlerts = getSystemAlerts();
+      const existingAlerts = await getSystemAlerts();
       for (const alert of existingAlerts) {
         if (!alert.resolved && (alert.type === 'SECURITY_BREACH' || alert.type === 'SCHEMA_MISMATCH')) {
-          resolveAlert(alert.id);
+          await resolveAlert(alert.id);
         }
       }
     }
@@ -207,7 +234,7 @@ export async function runAllChecks() {
         details: securityCheck.flaggedReasons.join('; '),
         resolved: false,
       };
-      addSystemAlert(alert);
+      await addSystemAlert(alert);
       results.alerts.push(alert);
       const sent = await notifyAlert(alert);
       if (sent) results.notificationsSent++;
@@ -216,41 +243,63 @@ export async function runAllChecks() {
 
   // Auto-resolve old DB_DOWN alerts when DIY endpoint is healthy
   if (!diyResult.isDegraded && !diyResult.error) {
-    const existingAlerts = getSystemAlerts();
+    const existingAlerts = await getSystemAlerts();
     for (const alert of existingAlerts) {
       if (!alert.resolved && alert.type === 'DB_DOWN') {
-        resolveAlert(alert.id);
+        await resolveAlert(alert.id);
       }
     }
+    await resetFailure('system', 'DB_DOWN');
   }
 
   // Check DB health via DIY endpoint
   if (diyResult.isDegraded && diyResult.statusCode === 200) {
-    const alert: SystemAlert = {
-      id: generateId(), timestamp: now, type: 'DB_DOWN',
-      platform: 'system',
-      message: 'DIY themes endpoint returned empty results — possible Redis degradation',
-      details: `Status: ${diyResult.statusCode}, Latency: ${diyResult.latencyMs}ms`,
-      resolved: false,
-    };
-    addSystemAlert(alert);
-    results.alerts.push(alert);
-    const sent = await notifyAlert(alert);
-    if (sent) results.notificationsSent++;
+    const count = await trackFailure('system', 'DB_DOWN');
+    if (count >= FAILURE_THRESHOLD) {
+      const alert: SystemAlert = {
+        id: generateId(), timestamp: now, type: 'DB_DOWN',
+        platform: 'system',
+        message: 'DIY themes endpoint returned empty results — possible Redis degradation',
+        details: `Status: ${diyResult.statusCode}, Latency: ${diyResult.latencyMs}ms (failure #${count})`,
+        resolved: false,
+      };
+      await addSystemAlert(alert);
+      results.alerts.push(alert);
+      const sent = await notifyAlert(alert);
+      if (sent) results.notificationsSent++;
+    }
   }
 
   if (diyResult.error) {
-    const alert: SystemAlert = {
-      id: generateId(), timestamp: now, type: 'DB_DOWN',
-      platform: 'system',
-      message: 'DIY themes endpoint unreachable',
-      details: diyResult.error,
-      resolved: false,
-    };
-    addSystemAlert(alert);
-    results.alerts.push(alert);
-    const sent = await notifyAlert(alert);
-    if (sent) results.notificationsSent++;
+    const count = await trackFailure('system', 'DB_DOWN');
+    if (count >= FAILURE_THRESHOLD) {
+      const alert: SystemAlert = {
+        id: generateId(), timestamp: now, type: 'DB_DOWN',
+        platform: 'system',
+        message: 'DIY themes endpoint unreachable',
+        details: diyResult.error + ` (failure #${count})`,
+        resolved: false,
+      };
+      await addSystemAlert(alert);
+      results.alerts.push(alert);
+      const sent = await notifyAlert(alert);
+      if (sent) results.notificationsSent++;
+    }
+  }
+
+  // Write status to Hash for fast Edge reads
+  if (isKvConfigured()) {
+    const hash: Record<string, string> = {};
+    for (const result of [vercelResult, netlifyResult]) {
+      hash[`${result.platform}:status`] = result.error ? 'outage' : result.statusCode === 200 ? 'online' : 'outage';
+      hash[`${result.platform}:latency`] = String(result.latencyMs);
+      hash[`${result.platform}:cache`] = result.cacheStatus;
+    }
+    hash['db:status'] = diyResult.isDegraded || diyResult.error ? 'degraded' : 'healthy';
+    hash['checkedAt'] = now;
+    for (const [field, value] of Object.entries(hash)) {
+      await kvHset('hash:status', field, value);
+    }
   }
 
   return results;

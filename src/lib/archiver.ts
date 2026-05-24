@@ -51,7 +51,7 @@ function aggregateLogs(logs: PerformanceLog[], hourKey: string): HourlyAggregate
 }
 
 export async function runHourlyAggregation(): Promise<HourlyAggregate[]> {
-  const logs = getPerformanceLogs();
+  const logs = await getPerformanceLogs();
   const hourKey = getHourKey(new Date());
 
   const existing = await kvGet<HourlyAggregate[]>(`${KV_KEY_HOURLY}:${hourKey}`, []);
