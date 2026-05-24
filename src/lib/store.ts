@@ -123,12 +123,16 @@ export async function getSystemAlerts(): Promise<SystemAlert[]> {
     const alerts = parseAlerts(await kvGet<unknown>(KV_STR_ALERTS, null));
     if (alerts.length > 0) return alerts;
 
-    // Fallback: try list-based storage (legacy data)
+    // Fallback: try list-based storage (legacy data), migrate to string store
     const items = await kvLrange(KV_LIST_ALERTS, 0, 200);
     if (items.length > 0) {
       const legacy: SystemAlert[] = [];
       for (const item of items) {
         try { legacy.push((typeof item === 'string' ? JSON.parse(item) : item) as SystemAlert); } catch {}
+      }
+      // Migrate to string-based storage so future reads avoid lrange
+      if (legacy.length > 0) {
+        await kvSet(KV_STR_ALERTS, JSON.stringify(legacy)).catch(() => {});
       }
       return legacy;
     }
@@ -157,7 +161,11 @@ export async function addSystemAlert(alert: SystemAlert) {
 
 export async function resolveAlert(alertId: string) {
   if (isKvConfigured()) {
-    const alerts = parseAlerts(await kvGet<unknown>(KV_STR_ALERTS, null));
+    let alerts = parseAlerts(await kvGet<unknown>(KV_STR_ALERTS, null));
+    // If store:alerts is empty, migrate from list first
+    if (alerts.length === 0) {
+      alerts = await getSystemAlerts(); // triggers migration
+    }
     let resolved = false;
     for (const a of alerts) {
       if (a.id === alertId) { a.resolved = true; resolved = true; }
@@ -168,19 +176,21 @@ export async function resolveAlert(alertId: string) {
 
     // Also resolve via list storage for backward compatibility
     const items = await kvLrange(KV_LIST_ALERTS, 0, 199);
-    const updated: string[] = [];
-    for (const item of items) {
-      try {
-        const alert = (typeof item === 'string' ? JSON.parse(item) : item) as SystemAlert;
-        if (alert.id === alertId) alert.resolved = true;
-        updated.push(JSON.stringify(alert));
-      } catch { updated.push(item); }
+    if (items.length > 0) {
+      const updated: string[] = [];
+      for (const item of items) {
+        try {
+          const alert = (typeof item === 'string' ? JSON.parse(item) : item) as SystemAlert;
+          if (alert.id === alertId) alert.resolved = true;
+          updated.push(JSON.stringify(alert));
+        } catch { updated.push(item); }
+      }
+      await kvDelete(KV_LIST_ALERTS);
+      for (let i = updated.length - 1; i >= 0; i--) {
+        await kvLpush(KV_LIST_ALERTS, updated[i]);
+      }
+      await kvLtrim(KV_LIST_ALERTS, 0, 199);
     }
-    await kvDelete(KV_LIST_ALERTS);
-    for (let i = updated.length - 1; i >= 0; i--) {
-      await kvLpush(KV_LIST_ALERTS, updated[i]);
-    }
-    await kvLtrim(KV_LIST_ALERTS, 0, 199);
     return;
   }
   const alerts = readJSON<SystemAlert[]>(ALERTS_FILE, []);
