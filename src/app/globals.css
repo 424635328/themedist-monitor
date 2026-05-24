@@ -17,6 +17,7 @@ body {
   .status-dot.outage { @apply bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]; }
   .status-dot.healthy { @apply bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]; }
   .status-dot.degraded { @apply bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]; }
+  .status-dot.no_data { @apply bg-zinc-500; }
 
   .card {
     @apply bg-[#14141a] border border-[#252530] rounded-xl p-5;

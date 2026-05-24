@@ -1,11 +1,13 @@
 import type { PerformanceLog, ThemeSnapshot, SystemAlert, TodayJsonResponse } from '@/types';
 import { validateTodayJson } from './validator';
 import { scanExtended } from './security';
-import { addPerformanceLog, addThemeSnapshot, addSystemAlert } from './store';
+import { addPerformanceLog, addThemeSnapshot, addSystemAlert, addMetricsEntry } from './store';
 import { notifyAlert } from './notifier';
 import { fetchWithProxy } from './fetch-proxy';
 import { resolveAlert, getSystemAlerts } from './store';
 import { kvGet, kvSet, kvHset, isKvConfigured } from './kv';
+import { logSecurityIncident } from './security-logger';
+import { isAlertCooling, setAlertCooldown } from './alert-cooldown';
 
 const FAILURE_THRESHOLD = 3; // consecutive failures before alerting
 
@@ -155,8 +157,12 @@ export async function runAllChecks() {
         };
         await addSystemAlert(alert);
         results.alerts.push(alert);
-        const sent = await notifyAlert(alert);
-        if (sent) results.notificationsSent++;
+        const cooling = await isAlertCooling(`OUTAGE:${result.platform}`);
+        if (!cooling) {
+          const sent = await notifyAlert(alert);
+          if (sent) results.notificationsSent++;
+          await setAlertCooldown(`OUTAGE:${result.platform}`);
+        }
       }
     }
     if (result.error) {
@@ -171,8 +177,12 @@ export async function runAllChecks() {
         };
         await addSystemAlert(alert);
         results.alerts.push(alert);
-        const sent = await notifyAlert(alert);
-        if (sent) results.notificationsSent++;
+        const cooling = await isAlertCooling(`OUTAGE:${result.platform}`);
+        if (!cooling) {
+          const sent = await notifyAlert(alert);
+          if (sent) results.notificationsSent++;
+          await setAlertCooldown(`OUTAGE:${result.platform}`);
+        }
       }
     }
     // Reset failure counter on successful response
@@ -214,6 +224,12 @@ export async function runAllChecks() {
       };
       await addSystemAlert(alert);
       results.alerts.push(alert);
+      const cooling = await isAlertCooling('SCHEMA_MISMATCH');
+      if (!cooling) {
+        const sent = await notifyAlert(alert);
+        if (sent) results.notificationsSent++;
+        await setAlertCooldown('SCHEMA_MISMATCH');
+      }
     }
 
     // Auto-resolve old security/schema alerts when safe
@@ -227,6 +243,16 @@ export async function runAllChecks() {
     }
 
     if (!securityCheck.isSafe) {
+      // Log each flagged reason as a security incident
+      for (const reason of securityCheck.flaggedReasons) {
+        await logSecurityIncident({
+          type: 'XSS_ATTACK',
+          field: 'root',
+          payload: reason,
+          ip: 'monitor-internal',
+        });
+      }
+
       const alert: SystemAlert = {
         id: generateId(), timestamp: now, type: 'SECURITY_BREACH',
         platform: 'both',
@@ -236,8 +262,25 @@ export async function runAllChecks() {
       };
       await addSystemAlert(alert);
       results.alerts.push(alert);
-      const sent = await notifyAlert(alert);
-      if (sent) results.notificationsSent++;
+
+      // Alert cooldown — don't spam the same security alert within 1 hour
+      const cooling = await isAlertCooling('SECURITY_BREACH');
+      if (!cooling) {
+        const sent = await notifyAlert(alert);
+        if (sent) results.notificationsSent++;
+        await setAlertCooldown('SECURITY_BREACH');
+      }
+    }
+
+    if (!validation.valid) {
+      for (const err of validation.errors) {
+        await logSecurityIncident({
+          type: 'SCHEMA_MISMATCH',
+          field: 'schema',
+          payload: err,
+          ip: 'monitor-internal',
+        });
+      }
     }
   }
 
@@ -265,8 +308,12 @@ export async function runAllChecks() {
       };
       await addSystemAlert(alert);
       results.alerts.push(alert);
-      const sent = await notifyAlert(alert);
-      if (sent) results.notificationsSent++;
+      const cooling = await isAlertCooling('DB_DOWN');
+      if (!cooling) {
+        const sent = await notifyAlert(alert);
+        if (sent) results.notificationsSent++;
+        await setAlertCooldown('DB_DOWN');
+      }
     }
   }
 
@@ -282,8 +329,12 @@ export async function runAllChecks() {
       };
       await addSystemAlert(alert);
       results.alerts.push(alert);
-      const sent = await notifyAlert(alert);
-      if (sent) results.notificationsSent++;
+      const cooling = await isAlertCooling('DB_DOWN');
+      if (!cooling) {
+        const sent = await notifyAlert(alert);
+        if (sent) results.notificationsSent++;
+        await setAlertCooldown('DB_DOWN');
+      }
     }
   }
 
@@ -300,6 +351,16 @@ export async function runAllChecks() {
     for (const [field, value] of Object.entries(hash)) {
       await kvHset('hash:status', field, value);
     }
+  }
+
+  // Store metrics in Sorted Sets for historical trend queries
+  const metricsTimestamp = Date.now();
+  for (const result of [vercelResult, netlifyResult]) {
+    await addMetricsEntry(result.platform, {
+      latencyMs: result.latencyMs,
+      isAvailable: result.statusCode === 200,
+      timestamp: now,
+    });
   }
 
   return results;

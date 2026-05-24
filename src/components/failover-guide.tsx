@@ -212,11 +212,10 @@ export function useThemeDist() {
                   {/* 左侧：徽章名称与实时 SVG 显示 */}
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="text-xs text-zinc-400 font-medium min-w-[90px]">{badge.label}</span>
-                    <img 
-                      src={badge.url} 
-                      alt={badge.label} 
+                    <img
+                      src={badge.url}
+                      alt={badge.label}
                       className="h-5 object-contain"
-                      loading="lazy"
                     />
                   </div>
 

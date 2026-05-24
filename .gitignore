@@ -29,7 +29,7 @@ build/
 Thumbs.db
 
 # project-specific
-data/
+/data/
 Launcher.bat
 s.bat
 

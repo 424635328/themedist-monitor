@@ -118,8 +118,8 @@ export async function kvZadd(key: string, member: string, score: number): Promis
 export async function kvZrangebyscore(key: string, min: number, max: number, limit = 200): Promise<ZMember[]> {
   if (!isKvConfigured()) return [];
   try {
-    // @vercel/kv zrange with byScore option returns array of { score, member }
-    const result = await getClient().zrange(key, min, max, { byScore: true, offset: 0, count: limit });
+    // byScore + withScores returns array of { score, member }
+    const result = await getClient().zrange(key, min, max, { byScore: true, offset: 0, count: limit, withScores: true });
     if (!Array.isArray(result)) return [];
     return result as unknown as ZMember[];
   } catch {
@@ -154,5 +154,45 @@ export async function kvLrange(key: string, start: number, stop: number): Promis
     return Array.isArray(result) ? result as string[] : [];
   } catch {
     return [];
+  }
+}
+
+// --- Counter & TTL operations (IP blocking, alert cooldown) ---
+
+export async function kvIncr(key: string): Promise<number> {
+  if (!isKvConfigured()) return 1;
+  try {
+    return await getClient().incr(key);
+  } catch {
+    return 1;
+  }
+}
+
+export async function kvExpire(key: string, seconds: number): Promise<void> {
+  if (!isKvConfigured()) return;
+  try {
+    await getClient().expire(key, seconds);
+  } catch {
+    // silently fail
+  }
+}
+
+export async function kvExists(key: string): Promise<boolean> {
+  if (!isKvConfigured()) return false;
+  try {
+    return (await getClient().exists(key)) === 1;
+  } catch {
+    return false;
+  }
+}
+
+// --- Sorted Set cleanup ---
+
+export async function kvZremrangebyscore(key: string, min: number, max: number): Promise<void> {
+  if (!isKvConfigured()) return;
+  try {
+    await getClient().zremrangebyscore(key, min, max);
+  } catch {
+    // silently fail
   }
 }

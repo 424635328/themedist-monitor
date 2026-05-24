@@ -46,6 +46,7 @@ export default function LiveStatus() {
       online: t('liveStatus.online'),
       slow: t('liveStatus.slow'),
       outage: t('liveStatus.outage'),
+      no_data: t('liveStatus.no_data'),
       checking: t('liveStatus.checking'),
       error: t('liveStatus.error'),
     };
@@ -56,6 +57,7 @@ export default function LiveStatus() {
     const map: Record<string, string> = {
       healthy: t('liveStatus.healthy'),
       degraded: t('liveStatus.degraded'),
+      no_data: t('liveStatus.no_data'),
       checking: t('liveStatus.checking'),
       error: t('liveStatus.error'),
     };
@@ -66,6 +68,7 @@ export default function LiveStatus() {
     if (s === 'online' || s === 'healthy') return 'online';
     if (s === 'slow') return 'slow';
     if (s === 'outage' || s === 'error' || s === 'degraded') return 'outage';
+    if (s === 'no_data') return 'no_data';
     return '';
   }
 

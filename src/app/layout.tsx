@@ -5,6 +5,9 @@ import Providers from '@/components/providers';
 export const metadata: Metadata = {
   title: 'ThemeDist Pulse — Service Monitor',
   description: 'Real-time monitoring dashboard for ThemeDist dual-platform deployment',
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

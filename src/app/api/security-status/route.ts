@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getThemeSnapshots } from '@/lib/store';
+import { corsHeaders } from '@/lib/cors';
 
-export const revalidate = 300; // 5 min CDN cache
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const snapshots = await getThemeSnapshots();
@@ -12,7 +13,7 @@ export async function GET() {
       status: 'unknown',
       message: 'No theme data available yet',
       timestamp: new Date().toISOString(),
-    });
+    }, { headers: corsHeaders() });
   }
 
   const isSafe = latest.securityStatus === 'safe';
@@ -28,5 +29,5 @@ export async function GET() {
     themeName: latest.presetName,
     checkedAt: latest.date,
     timestamp: new Date().toISOString(),
-  });
+  }, { headers: corsHeaders() });
 }

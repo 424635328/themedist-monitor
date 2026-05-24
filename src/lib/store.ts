@@ -2,7 +2,7 @@ import type { PerformanceLog, ThemeSnapshot, SystemAlert } from '@/types';
 import fs from 'fs';
 import path from 'path';
 import {
-  kvList, kvPush, kvZadd, kvZrangebyscore,
+  kvList, kvPush, kvZadd, kvZrangebyscore, kvZremrangebyscore,
   kvLpush, kvLtrim, kvLrange, kvDelete,
   kvHset, kvHgetall,
   isKvConfigured,
@@ -174,4 +174,44 @@ export async function setStatusHash(data: Record<string, string>) {
 
 export async function getStatusHash(): Promise<Record<string, string> | null> {
   return kvHgetall<Record<string, string>>(KV_HASH_STATUS);
+}
+
+// --- Metrics Sorted Sets (historical trends) ---
+
+export interface MetricsEntry {
+  latencyMs: number;
+  isAvailable: boolean;
+  timestamp: string;
+}
+
+const METRICS_ZSET_PREFIX = 'metrics';
+
+const METRICS_RETENTION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+export async function addMetricsEntry(platform: string, entry: MetricsEntry) {
+  if (!isKvConfigured()) return;
+  const key = `${METRICS_ZSET_PREFIX}:${platform}`;
+  const score = new Date(entry.timestamp).getTime();
+  await kvZadd(key, JSON.stringify(entry), score);
+
+  // Clean up entries older than 7 days
+  const cutoff = Date.now() - METRICS_RETENTION_MS;
+  await kvZremrangebyscore(key, 0, cutoff);
+}
+
+export async function getMetricsHistory(
+  platform: string,
+  sinceMs: number,
+  untilMs?: number
+): Promise<MetricsEntry[]> {
+  if (!isKvConfigured()) return [];
+  const key = `${METRICS_ZSET_PREFIX}:${platform}`;
+  const members = await kvZrangebyscore(key, sinceMs, untilMs ?? Date.now(), 500);
+  const entries: MetricsEntry[] = [];
+  for (const m of members) {
+    try {
+      entries.push(JSON.parse(m.member) as MetricsEntry);
+    } catch { /* skip corrupt entries */ }
+  }
+  return entries;
 }
