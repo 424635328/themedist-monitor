@@ -43,31 +43,35 @@ export async function GET(
   const snapshots = await getThemeSnapshots();
   const alerts = await getSystemAlerts();
 
-  const latestLogs = logs.slice(-4);
+  // Use the same status logic as the /api/data dashboard
+  const latestVercel = [...logs].reverse().find((l) => l.platform === 'vercel');
+  const latestNetlify = [...logs].reverse().find((l) => l.platform === 'netlify');
 
-  function lastStatus(platform: string): { ok: boolean; latency: number } {
-    const log = [...latestLogs].reverse().find((l) => l.platform === platform);
-    if (!log) return { ok: false, latency: 0 };
-    return { ok: log.statusCode === 200, latency: log.latencyMs };
+  function platformStatus(log: typeof latestVercel): 'online' | 'outage' | 'unknown' {
+    if (!log) return 'unknown';
+    if (log.statusCode === 200) return 'online';
+    return 'outage';
   }
 
   let label: string;
   let value: string;
   let color: string;
 
+  const statusColor = { online: '#4c1', outage: '#e05d44', unknown: '#9f9f9f' };
+
   switch (type) {
     case 'vercel': {
-      const st = lastStatus('vercel');
+      const st = platformStatus(latestVercel);
       label = 'Vercel';
-      value = st.ok ? `Online (${st.latency}ms)` : 'Offline';
-      color = st.ok ? '#4c1' : '#e05d44';
+      value = st === 'online' ? `Online (${latestVercel?.latencyMs ?? '?'}ms)` : st === 'outage' ? 'Offline' : 'No Data';
+      color = statusColor[st];
       break;
     }
     case 'netlify': {
-      const st = lastStatus('netlify');
+      const st = platformStatus(latestNetlify);
       label = 'Netlify';
-      value = st.ok ? `Online (${st.latency}ms)` : 'Offline';
-      color = st.ok ? '#4c1' : '#e05d44';
+      value = st === 'online' ? `Online (${latestNetlify?.latencyMs ?? '?'}ms)` : st === 'outage' ? 'Offline' : 'No Data';
+      color = statusColor[st];
       break;
     }
     case 'theme': {
@@ -93,8 +97,6 @@ export async function GET(
       break;
     }
     case 'uptime': {
-      const vercelOk = lastStatus('vercel').ok;
-      const netlifyOk = lastStatus('netlify').ok;
       const totalChecks = logs.length;
       const okChecks = logs.filter((l) => l.statusCode === 200).length;
       const uptime = totalChecks > 0 ? ((okChecks / totalChecks) * 100).toFixed(1) : 'N/A';
