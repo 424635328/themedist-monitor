@@ -30,10 +30,10 @@ export async function GET() {
     const testMember = JSON.stringify({ test: true, ts: Date.now() });
     await kvZadd(testKey, testMember, Date.now());
     const members = await kvZrangebyscore(testKey, 0, Date.now() + 1000, 1);
-    if (members.length > 0 && members[0].member) {
-      results.zsetAddRange = `OK (member: ${members[0].member.slice(0, 50)})`;
+    if (members.length > 0) {
+      results.zsetAddRange = `OK (got ${members.length} members, first: ${members[0].slice(0, 50)})`;
     } else {
-      results.zsetAddRange = `FAIL (got ${members.length} members, first: ${JSON.stringify(members[0] || 'none')})`;
+      results.zsetAddRange = `FAIL (empty)`;
     }
   } catch (e) {
     results.zsetAddRange = `ERROR: ${(e as Error).message}`;
