@@ -8,17 +8,14 @@ const MALICIOUS_PATTERNS: RegExp[] = [
   /<script\b[^>]*>[\s\S]*?<\/script>/i,
   /javascript\s*:/i,
   /alert\s*\(/i,
-  /onerror\s*=/i,
-  /onload\s*=/i,
-  /onclick\s*=/i,
-  /onmouseover\s*=/i,
-  /<[^>]*on\w+\s*=[^>]*>/i,
+  /on\w+\s*=/i,
   /document\.cookie/i,
   /eval\s*\(/i,
   /<iframe\b[^>]*>/i,
   /expression\s*\(/i,
   /-moz-binding/i,
   /data\s*:\s*text\/html/i,
+  /<\/style/i,
 ];
 
 export interface ExtendedSecurityResult {
@@ -84,10 +81,8 @@ export function sanitizeValue(value: unknown): unknown {
     return value.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '[REMOVED]')
       .replace(/javascript\s*:/gi, 'blocked:')
       .replace(/alert\s*\(/gi, 'blocked(')
-      .replace(/onerror\s*=/gi, 'blocked=')
-      .replace(/onload\s*=/gi, 'blocked=')
-      .replace(/onclick\s*=/gi, 'blocked=')
-      .replace(/onmouseover\s*=/gi, 'blocked=');
+      .replace(/on\w+\s*=/gi, 'blocked=')
+      .replace(/<\/style/gi, 'blocked');
   }
   return value;
 }

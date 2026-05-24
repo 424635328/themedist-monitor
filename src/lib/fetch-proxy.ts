@@ -36,15 +36,7 @@ function collectBody(res: http.IncomingMessage): Promise<Buffer> {
   });
 }
 
-export async function fetchWithProxy(url: string, init?: RequestInit): Promise<Response> {
-  const proxyUrl = getProxyUrl();
-
-  if (!proxyUrl) {
-    return fetch(url, init);
-  }
-
-  console.log(`[fetch-proxy] using proxy ${proxyUrl} for ${new URL(url).hostname}`);
-
+function doRequest(url: string, useProxy: boolean, init?: RequestInit): Promise<Response> {
   const parsed = new URL(url);
   const isHttps = parsed.protocol === 'https:';
   const mod = isHttps ? https : http;
@@ -56,7 +48,7 @@ export async function fetchWithProxy(url: string, init?: RequestInit): Promise<R
       path: parsed.pathname + parsed.search,
       method: init?.method || 'GET',
       headers: (init?.headers as Record<string, string>) || {},
-      agent: getAgent(),
+      agent: useProxy ? getAgent() : undefined,
       timeout: 15000,
     };
 
@@ -80,4 +72,29 @@ export async function fetchWithProxy(url: string, init?: RequestInit): Promise<R
     }
     req.end();
   });
+}
+
+function isProxyError(err: Error): boolean {
+  const msg = err.message.toLowerCase();
+  return msg.includes('econnrefused') || msg.includes('enotfound') || msg.includes('etimedout');
+}
+
+export async function fetchWithProxy(url: string, init?: RequestInit): Promise<Response> {
+  const proxyUrl = getProxyUrl();
+
+  if (!proxyUrl) {
+    return fetch(url, init);
+  }
+
+  console.log(`[fetch-proxy] using proxy ${proxyUrl} for ${new URL(url).hostname}`);
+
+  try {
+    return await doRequest(url, true, init);
+  } catch (err) {
+    if (isProxyError(err as Error)) {
+      console.warn(`[fetch-proxy] proxy failed (${(err as Error).message}), retrying direct for ${new URL(url).hostname}`);
+      return doRequest(url, false, init);
+    }
+    throw err;
+  }
 }

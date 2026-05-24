@@ -49,11 +49,11 @@ export function sanitizeHtml(html: unknown): SanitizeResult {
   let modified = false;
   const original = html;
 
-  // Remove event handlers (onclick, onerror, onload, etc.)
-  let cleaned = html.replace(/<[^>]*\s+on\w+\s*=\s*(['"]?)[^'"]*\1[^>]*>/gi, (match) => {
+  // Remove event handlers (onclick, onerror, onload, etc.) — handles quoted and unquoted values
+  let cleaned = html.replace(/<[^>]*\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|\S+)[^>]*>/gi, (match) => {
     flagged.push(`Stripped event handler: ${match.slice(0, 60)}`);
     modified = true;
-    return match.replace(/\s+on\w+\s*=\s*(['"])[^'"]*\1/gi, '');
+    return match.replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|\S+)/gi, '');
   });
 
   // Strip javascript: protocol in href/src

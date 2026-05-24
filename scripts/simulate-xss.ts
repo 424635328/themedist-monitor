@@ -69,17 +69,14 @@ const MALICIOUS_PATTERNS: RegExp[] = [
   /<script\b[^>]*>[\s\S]*?<\/script>/gi,
   /javascript\s*:/gi,
   /alert\s*\(/gi,
-  /onerror\s*=/gi,
-  /onload\s*=/gi,
-  /onclick\s*=/gi,
-  /onmouseover\s*=/gi,
-  /<[^>]*on\w+\s*=[^>]*>/gi,
+  /on\w+\s*=/gi,
   /document\.cookie/gi,
   /eval\s*\(/gi,
   /<iframe\b[^>]*>/gi,
   /expression\s*\(/gi,
   /-moz-binding/gi,
   /data\s*:\s*text\/html/gi,
+  /<\/style/gi,
 ];
 
 function scanValue(value: unknown, path: string, flagged: string[]): void {
