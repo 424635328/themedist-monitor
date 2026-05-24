@@ -1,11 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getPerformanceLogs, getThemeSnapshots, getSystemAlerts } from '@/lib/store';
 
 function svgBadge(label: string, value: string, color: string): string {
   const labelWidth = label.length * 8 + 14;
   const valueWidth = value.length * 8 + 14;
   const totalWidth = labelWidth + valueWidth;
-  // Unique suffix prevents SVG id collisions when multiple badges on same page
   const uid = Math.random().toString(36).slice(2, 8);
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="20">
@@ -34,21 +33,32 @@ function escapeXml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+const statusColor: Record<string, string> = {
+  online: '#4c1',
+  slow: '#dfb317',
+  outage: '#e05d44',
+  no_data: '#9f9f9f',
+  unhealthy: '#e05d44',
+};
+
 export async function GET(
-  _request: NextRequest,
+  _request: Request,
   { params }: { params: { type: string } }
 ) {
   const { type } = params;
-  const logs = await getPerformanceLogs();
-  const snapshots = await getThemeSnapshots();
-  const alerts = await getSystemAlerts();
 
-  // Use the same status logic as the /api/data dashboard
-  const latestVercel = [...logs].reverse().find((l) => l.platform === 'vercel');
-  const latestNetlify = [...logs].reverse().find((l) => l.platform === 'netlify');
+  // Read the same data sources used by /api/data for consistency
+  const [logs, snapshots, alerts] = await Promise.all([
+    getPerformanceLogs(),
+    getThemeSnapshots(),
+    getSystemAlerts(),
+  ]);
 
-  function platformStatus(log: typeof latestVercel): 'online' | 'outage' | 'unknown' {
-    if (!log) return 'unknown';
+  const latestVercel = [...logs].reverse().find((l: { platform: string }) => l.platform === 'vercel');
+  const latestNetlify = [...logs].reverse().find((l: { platform: string }) => l.platform === 'netlify');
+
+  function platformStatus(log: typeof latestVercel): string {
+    if (!log) return 'no_data';
     if (log.statusCode === 200) return 'online';
     return 'outage';
   }
@@ -57,21 +67,23 @@ export async function GET(
   let value: string;
   let color: string;
 
-  const statusColor = { online: '#4c1', outage: '#e05d44', unknown: '#9f9f9f' };
-
   switch (type) {
     case 'vercel': {
       const st = platformStatus(latestVercel);
       label = 'Vercel';
-      value = st === 'online' ? `Online (${latestVercel?.latencyMs ?? '?'}ms)` : st === 'outage' ? 'Offline' : 'No Data';
-      color = statusColor[st];
+      value = st === 'online'
+        ? `Online (${latestVercel?.latencyMs ?? '?'}ms)`
+        : st === 'outage' ? 'Offline' : 'No Data';
+      color = statusColor[st] ?? '#9f9f9f';
       break;
     }
     case 'netlify': {
       const st = platformStatus(latestNetlify);
       label = 'Netlify';
-      value = st === 'online' ? `Online (${latestNetlify?.latencyMs ?? '?'}ms)` : st === 'outage' ? 'Offline' : 'No Data';
-      color = statusColor[st];
+      value = st === 'online'
+        ? `Online (${latestNetlify?.latencyMs ?? '?'}ms)`
+        : st === 'outage' ? 'Offline' : 'No Data';
+      color = statusColor[st] ?? '#9f9f9f';
       break;
     }
     case 'theme': {
@@ -90,7 +102,7 @@ export async function GET(
       break;
     }
     case 'database': {
-      const dbDown = alerts.some((a) => a.type === 'DB_DOWN' && !a.resolved);
+      const dbDown = alerts.some((a: { type: string; resolved: boolean }) => a.type === 'DB_DOWN' && !a.resolved);
       label = 'Database';
       value = dbDown ? 'Degraded' : 'Healthy';
       color = dbDown ? '#e05d44' : '#4c1';
@@ -98,16 +110,17 @@ export async function GET(
     }
     case 'uptime': {
       const totalChecks = logs.length;
-      const okChecks = logs.filter((l) => l.statusCode === 200).length;
+      const okChecks = logs.filter((l: { statusCode: number }) => l.statusCode === 200).length;
       const uptime = totalChecks > 0 ? ((okChecks / totalChecks) * 100).toFixed(1) : 'N/A';
       label = 'Uptime';
       value = `${uptime}%`;
-      color = parseFloat(uptime as string) > 99 ? '#4c1' : parseFloat(uptime as string) > 95 ? '#dfb317' : '#e05d44';
+      color = parseFloat(uptime as string) > 99 ? '#4c1'
+        : parseFloat(uptime as string) > 95 ? '#dfb317'
+        : '#e05d44';
       break;
     }
     default: {
-      const svg = svgBadge('Badge', 'Unknown Type', '#9f9f9f');
-      return new NextResponse(svg, {
+      return new NextResponse(svgBadge('Badge', 'Unknown Type', '#9f9f9f'), {
         headers: {
           'Content-Type': 'image/svg+xml',
           'Cache-Control': 'public, s-maxage=60',
@@ -117,11 +130,10 @@ export async function GET(
     }
   }
 
-  const svg = svgBadge(label, value, color);
-  return new NextResponse(svg, {
+  return new NextResponse(svgBadge(label, value, color), {
     headers: {
       'Content-Type': 'image/svg+xml',
-      'Cache-Control': 'public, max-age=300, s-maxage=600, stale-while-revalidate=1200',
+      'Cache-Control': 'public, max-age=60, s-maxage=120, stale-while-revalidate=300',
       'Access-Control-Allow-Origin': '*',
     },
   });
