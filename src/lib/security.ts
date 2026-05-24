@@ -2,21 +2,23 @@
 import { auditCustomCss, auditCssVars } from './css-analyzer';
 import { sanitizeHtml, sanitizeExtensions } from './html-sanitizer';
 
+// NOTE: no 'g' flag — these are used with .test() which is stateful
+// with 'g', causing phantom matches across invocations (lastIndex bug).
 const MALICIOUS_PATTERNS: RegExp[] = [
-  /<script\b[^>]*>[\s\S]*?<\/script>/gi,
-  /javascript\s*:/gi,
-  /alert\s*\(/gi,
-  /onerror\s*=/gi,
-  /onload\s*=/gi,
-  /onclick\s*=/gi,
-  /onmouseover\s*=/gi,
-  /<[^>]*on\w+\s*=[^>]*>/gi,
-  /document\.cookie/gi,
-  /eval\s*\(/gi,
-  /<iframe\b[^>]*>/gi,
-  /expression\s*\(/gi,
-  /-moz-binding/gi,
-  /data\s*:\s*text\/html/gi,
+  /<script\b[^>]*>[\s\S]*?<\/script>/i,
+  /javascript\s*:/i,
+  /alert\s*\(/i,
+  /onerror\s*=/i,
+  /onload\s*=/i,
+  /onclick\s*=/i,
+  /onmouseover\s*=/i,
+  /<[^>]*on\w+\s*=[^>]*>/i,
+  /document\.cookie/i,
+  /eval\s*\(/i,
+  /<iframe\b[^>]*>/i,
+  /expression\s*\(/i,
+  /-moz-binding/i,
+  /data\s*:\s*text\/html/i,
 ];
 
 export interface ExtendedSecurityResult {
