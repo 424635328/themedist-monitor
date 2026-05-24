@@ -140,9 +140,12 @@ Base URL: `https://themedist-monitor.vercel.app`
 ## 触发监控检测
 
 ### GET /api/monitor
+
+公开触发一次完整的监控检测（无需鉴权）：抓取 Vercel、Netlify 及 DIY 主题端点数据，校验 JSON Schema，执行安全扫描，检查数据库/Redis 健康状态，存储检测结果并生成告警通知。
+
 ### POST /api/monitor
 
-触发一次完整的监控检测：抓取 Vercel 和 Netlify 端点数据、校验 Schema、执行安全扫描、检查数据库健康状态。
+与 GET 执行相同的检测流程，但需要鉴权（`Authorization: Bearer <CRON_SECRET>`），供 Vercel Cron 定时调度。
 
 **频率限制：** 每 30 秒限调用 1 次
 
@@ -151,17 +154,40 @@ Base URL: `https://themedist-monitor.vercel.app`
 ```json
 {
   "message": "Monitor check complete",
-  "timestamp": "2026-05-24T12:00:00.000Z",
-  "performanceLogs": [ ... ],
-  "themeSnapshot": { ... },
-  "alerts": [ ... ],
+  "timestamp": "2026-05-24T06:51:05.605Z",
+  "performanceLogs": [
+    {
+      "id": "839c12f6-...",
+      "timestamp": "2026-05-24T06:51:01.354Z",
+      "platform": "vercel",
+      "endpoint": "https://themedist.vercel.app/api/today.json",
+      "statusCode": 200,
+      "latencyMs": 820,
+      "cacheStatus": "MISS",
+      "cacheControl": "public, max-age=3600"
+    }
+  ],
+  "themeSnapshot": {
+    "id": "3ce3e8ad-...",
+    "date": "2026-05-24",
+    "preset": "holiday-144",
+    "presetName": "BUDDHA BIRTHDAY",
+    "themeCount": 147,
+    "isValidSchema": true,
+    "securityStatus": "safe"
+  },
+  "alerts": [],
   "notificationsSent": 0
 }
 ```
 
+---
+
+## 数据管理
+
 ### DELETE /api/monitor
 
-清除所有已存储的监控数据（性能日志、主题快照、告警记录）。
+清除所有已存储的监控数据（性能日志、主题快照、告警记录）。需鉴权（`Authorization: Bearer <CRON_SECRET>`）。
 
 **响应格式：** `application/json`
 

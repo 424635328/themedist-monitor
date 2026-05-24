@@ -147,8 +147,15 @@ export async function kvLtrim(key: string, start: number, stop: number): Promise
 export async function kvLrange(key: string, start: number, stop: number): Promise<string[]> {
   if (!isKvConfigured()) return [];
   try {
-    const result = await getClient().lrange(key, start, stop);
-    return Array.isArray(result) ? result as string[] : [];
+    // Use raw fetch — @upstash/redis v1.38 client.lrange() returns empty
+    // in the Next.js bundled context (while REST API works fine).
+    const token = process.env.KV_REST_API_TOKEN || '';
+    const baseUrl = (process.env.KV_REST_API_URL || '').replace(/\/$/, '');
+    const url = `${baseUrl}/lrange/${key}/${start}/${stop}`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const json = await res.json() as { result?: string[] };
+    if (Array.isArray(json.result)) return json.result;
+    return [];
   } catch {
     return [];
   }

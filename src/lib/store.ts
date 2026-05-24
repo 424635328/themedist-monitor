@@ -111,7 +111,8 @@ export async function getSystemAlerts(): Promise<SystemAlert[]> {
     const alerts: SystemAlert[] = [];
     for (const item of items) {
       try {
-        alerts.push(JSON.parse(item) as SystemAlert);
+        const alert = (typeof item === 'string' ? JSON.parse(item) : item) as SystemAlert;
+        alerts.push(alert);
       } catch { /* skip corrupt entries */ }
     }
     return alerts;
@@ -139,7 +140,7 @@ export async function resolveAlert(alertId: string) {
     const updated: string[] = [];
     for (const item of items) {
       try {
-        const alert = JSON.parse(item) as SystemAlert;
+        const alert = (typeof item === 'string' ? JSON.parse(item) : item) as SystemAlert;
         if (alert.id === alertId) alert.resolved = true;
         updated.push(JSON.stringify(alert));
       } catch {

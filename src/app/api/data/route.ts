@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPerformanceLogs, getThemeSnapshots, getSystemAlerts, getMetricsHistory } from '@/lib/store';
+import { getPerformanceLogs, getThemeSnapshots, getSystemAlerts, getMetricsHistory, getStatusHash } from '@/lib/store';
 import { getRecentIncidents } from '@/lib/security-logger';
 
 export const dynamic = 'force-dynamic';
@@ -46,9 +46,13 @@ export async function GET() {
     );
   }
 
-  // DB health
-  const dbHealthy = hasAnyData && !alerts.some(
-    (a) => a.type === 'DB_DOWN' && !a.resolved
+  // DB health — read from status hash (same source as /api/status) to avoid
+  // inconsistency between hash:status db field and list:alerts unresolved items.
+  const statusHash = await getStatusHash();
+  const dbStatus: string = statusHash?.['db:status'] ?? (
+    hasAnyData
+      ? (!alerts.some((a) => a.type === 'DB_DOWN' && !a.resolved) ? 'healthy' : 'degraded')
+      : 'no_data'
   );
 
   const unresolvedAlerts = alerts.filter((a) => !a.resolved);
@@ -80,7 +84,7 @@ export async function GET() {
     status: {
       vercel: { status: getPlatformStatus(vercelLatest), latencyMs: vercelLatest?.latencyMs ?? null },
       netlify: { status: getPlatformStatus(netlifyLatest), latencyMs: netlifyLatest?.latencyMs ?? null },
-      db: hasAnyData ? (dbHealthy ? 'healthy' : 'degraded') : 'no_data',
+      db: dbStatus,
     },
     metrics: {
       avgLatency24h: { vercel: avgLatency('vercel'), netlify: avgLatency('netlify') },
