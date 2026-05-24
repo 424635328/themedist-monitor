@@ -102,4 +102,4 @@ Designed for [Vercel](https://vercel.com). The included `vercel.json` configures
 
 ## License
 
-MIT
+[GPL-3.0](LICENSE)
