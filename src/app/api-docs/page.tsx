@@ -91,9 +91,13 @@ function parseMarkdownToHtml(markdown: string): { html: string; toc: TocItem[] }
         .replace(/>/g, '&gt;');
       
       htmlBlocks.push(`
-        <div class="relative group my-5 rounded-xl border border-zinc-800/80 bg-zinc-950 overflow-hidden font-mono text-xs leading-relaxed">
+        <div class="code-block-wrapper relative group my-5 rounded-xl border border-zinc-800/80 bg-zinc-950 overflow-hidden font-mono text-xs leading-relaxed">
           <div class="flex items-center justify-between px-4 py-2 bg-zinc-900/50 border-b border-zinc-800/80 text-zinc-500 text-[10px] font-sans tracking-wider uppercase select-none">
             <span>${lang || 'code'}</span>
+            <button class="copy-code-btn text-zinc-600 hover:text-zinc-300 transition-colors flex items-center gap-1 text-[10px] font-sans normal-case">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="btn-label">复制</span>
+            </button>
           </div>
           <pre class="p-4 overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-800"><code class="text-zinc-300 block">${escapedCode}</code></pre>
         </div>
@@ -318,6 +322,21 @@ export default function ApiDocsPage() {
 
         </div>
       </div>
+
+      <script dangerouslySetInnerHTML={{ __html: `
+        document.querySelectorAll('.copy-code-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var wrapper = btn.closest('.code-block-wrapper');
+            var code = wrapper ? wrapper.querySelector('code').textContent : '';
+            navigator.clipboard.writeText(code).then(function() {
+              var label = btn.querySelector('.btn-label');
+              var orig = label.textContent;
+              label.textContent = '已复制!';
+              setTimeout(function() { label.textContent = orig; }, 2000);
+            });
+          });
+        });
+      `}} />
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { ReactNode } from 'react';
 import { LanguageProvider, useLanguage } from '@/lib/i18n';
 import { Languages } from 'lucide-react';
+import ThemeDistTheme from './theme-dist-theme';
 
 function Header() {
   const { lang, setLang, t } = useLanguage();
@@ -48,6 +49,7 @@ function Footer() {
 export default function Providers({ children }: { children: ReactNode }) {
   return (
     <LanguageProvider>
+      <ThemeDistTheme />
       <Header />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {children}
