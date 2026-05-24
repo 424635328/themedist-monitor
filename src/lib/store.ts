@@ -106,27 +106,31 @@ export async function addThemeSnapshot(snapshot: ThemeSnapshot) {
 
 // --- System Alerts ---
 
+// @upstash/redis v1.38 auto-deserializes JSON, so kvGet may return an array
+// instead of a string. This helper handles both cases.
+function parseAlerts(raw: unknown): SystemAlert[] {
+  if (Array.isArray(raw)) return raw as SystemAlert[];
+  if (typeof raw === 'string') {
+    try { const v = JSON.parse(raw); if (Array.isArray(v)) return v as SystemAlert[]; } catch {}
+  }
+  return [];
+}
+
 export async function getSystemAlerts(): Promise<SystemAlert[]> {
   if (isKvConfigured()) {
     // Use string-based JSON storage (kvGet/kvSet work reliably in Vercel bundled
     // context, unlike kvLrange which has known issues with @upstash/redis v1.38)
-    const stored = await kvGet<string>(KV_STR_ALERTS, '');
-    if (stored) {
-      try {
-        const alerts = JSON.parse(stored) as SystemAlert[];
-        if (Array.isArray(alerts)) return alerts;
-      } catch { /* corrupt data, fall through */ }
-    }
+    const alerts = parseAlerts(await kvGet<unknown>(KV_STR_ALERTS, null));
+    if (alerts.length > 0) return alerts;
+
     // Fallback: try list-based storage (legacy data)
     const items = await kvLrange(KV_LIST_ALERTS, 0, 200);
     if (items.length > 0) {
-      const alerts: SystemAlert[] = [];
+      const legacy: SystemAlert[] = [];
       for (const item of items) {
-        try {
-          alerts.push((typeof item === 'string' ? JSON.parse(item) : item) as SystemAlert);
-        } catch { /* skip corrupt entries */ }
+        try { legacy.push((typeof item === 'string' ? JSON.parse(item) : item) as SystemAlert); } catch {}
       }
-      return alerts;
+      return legacy;
     }
     return [];
   }
@@ -135,15 +139,9 @@ export async function getSystemAlerts(): Promise<SystemAlert[]> {
 
 export async function addSystemAlert(alert: SystemAlert) {
   if (isKvConfigured()) {
-    // Write via string-based JSON (kvGet/kvSet work, kvLpush might not)
-    const stored = await kvGet<string>(KV_STR_ALERTS, '');
-    let alerts: SystemAlert[] = [];
-    if (stored) {
-      try { alerts = JSON.parse(stored) as SystemAlert[]; } catch { /* reset */ }
-    }
-    if (!Array.isArray(alerts)) alerts = [];
+    const alerts = parseAlerts(await kvGet<unknown>(KV_STR_ALERTS, null));
     alerts.push(alert);
-    if (alerts.length > 200) alerts = alerts.slice(-200);
+    if (alerts.length > 200) alerts.splice(0, alerts.length - 200);
     await kvSet(KV_STR_ALERTS, JSON.stringify(alerts));
 
     // Also write via list for backward compatibility
@@ -159,13 +157,7 @@ export async function addSystemAlert(alert: SystemAlert) {
 
 export async function resolveAlert(alertId: string) {
   if (isKvConfigured()) {
-    // Resolve via string-based JSON storage
-    const stored = await kvGet<string>(KV_STR_ALERTS, '');
-    let alerts: SystemAlert[] = [];
-    if (stored) {
-      try { alerts = JSON.parse(stored) as SystemAlert[]; } catch { /* reset */ }
-    }
-    if (!Array.isArray(alerts)) alerts = [];
+    const alerts = parseAlerts(await kvGet<unknown>(KV_STR_ALERTS, null));
     let resolved = false;
     for (const a of alerts) {
       if (a.id === alertId) { a.resolved = true; resolved = true; }
@@ -182,9 +174,7 @@ export async function resolveAlert(alertId: string) {
         const alert = (typeof item === 'string' ? JSON.parse(item) : item) as SystemAlert;
         if (alert.id === alertId) alert.resolved = true;
         updated.push(JSON.stringify(alert));
-      } catch {
-        updated.push(item);
-      }
+      } catch { updated.push(item); }
     }
     await kvDelete(KV_LIST_ALERTS);
     for (let i = updated.length - 1; i >= 0; i--) {
