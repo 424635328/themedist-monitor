@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Shield, ShieldAlert, AlertTriangle, Palette, User, CheckCircle, XCircle } from 'lucide-react';
+import { Shield, ShieldAlert, AlertTriangle, Palette, User, CheckCircle, CircleX } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import type { ThemeSnapshot } from '@/types';
 
@@ -85,7 +85,7 @@ export default function ThemeAudit() {
             {isSchemaValid ? (
               <CheckCircle className="w-3.5 h-3.5 text-green-400" />
             ) : (
-              <XCircle className="w-3.5 h-3.5 text-red-400" />
+              <CircleX className="w-3.5 h-3.5 text-red-400" />
             )}
             <span className={isSchemaValid ? 'text-green-400' : 'text-red-400'}>
               {isSchemaValid ? t('theme.schemaValid') : t('theme.schemaInvalid')}

@@ -69,6 +69,8 @@ const translations = {
     'alerts.database': '数据库',
     'alerts.schema': 'Schema',
     'alerts.resolved': '已解决',
+    'alerts.copy': '复制',
+    'alerts.copied': '已复制！',
 
     'failover.title': '容灾与集成指南',
     'failover.bestPractices': 'ThemeDist 消费者最佳实践',
@@ -149,6 +151,8 @@ const translations = {
     'alerts.database': 'Database',
     'alerts.schema': 'Schema',
     'alerts.resolved': 'Resolved',
+    'alerts.copy': 'Copy',
+    'alerts.copied': 'Copied!',
 
     'failover.title': 'Failover & Integration Guide',
     'failover.bestPractices': 'Best Practices for ThemeDist Consumers',

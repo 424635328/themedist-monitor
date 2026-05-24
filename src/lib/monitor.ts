@@ -214,6 +214,16 @@ export async function runAllChecks() {
     }
   }
 
+  // Auto-resolve old DB_DOWN alerts when DIY endpoint is healthy
+  if (!diyResult.isDegraded && !diyResult.error) {
+    const existingAlerts = getSystemAlerts();
+    for (const alert of existingAlerts) {
+      if (!alert.resolved && alert.type === 'DB_DOWN') {
+        resolveAlert(alert.id);
+      }
+    }
+  }
+
   // Check DB health via DIY endpoint
   if (diyResult.isDegraded && diyResult.statusCode === 200) {
     const alert: SystemAlert = {

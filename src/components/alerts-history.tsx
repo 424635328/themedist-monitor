@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Bell, BellOff, AlertTriangle, ServerCrash, Database, FileWarning } from 'lucide-react';
+import { Bell, BellOff, AlertTriangle, ServerCrash, Database, FileWarning, Copy, Check } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import type { SystemAlert } from '@/types';
 
@@ -16,6 +16,7 @@ export default function AlertsHistory() {
   const { t } = useLanguage();
   const [alerts, setAlerts] = useState<SystemAlert[]>([]);
   const [showResolved, setShowResolved] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     fetch('/api/data')
@@ -25,6 +26,25 @@ export default function AlertsHistory() {
   }, []);
 
   const displayed = showResolved ? alerts : alerts.filter((a) => !a.resolved);
+
+  async function copyAlerts() {
+    const text = displayed
+      .map((a) => `[${a.type}] ${a.platform} — ${a.message}\n${a.details}\n${new Date(a.timestamp).toLocaleString()}${a.resolved ? ' (resolved)' : ''}`)
+      .join('\n\n---\n\n');
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // fallback
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   const alertTypeLabel: Record<string, string> = {
     OUTAGE: t('alerts.outage'),
@@ -47,13 +67,24 @@ export default function AlertsHistory() {
           <Bell className="w-4 h-4 text-zinc-400" />
           <h2 className="text-sm font-semibold text-white">{t('alerts.title')}</h2>
         </div>
-        <button
-          onClick={() => setShowResolved(!showResolved)}
-          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
-        >
-          {showResolved ? <BellOff className="w-3 h-3" /> : <Bell className="w-3 h-3" />}
-          {showResolved ? t('alerts.all') : t('alerts.unresolved')}
-        </button>
+        <div className="flex items-center gap-2">
+          {displayed.length > 0 && (
+            <button
+              onClick={copyAlerts}
+              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+            >
+              {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+              {copied ? t('alerts.copied') : t('alerts.copy')}
+            </button>
+          )}
+          <button
+            onClick={() => setShowResolved(!showResolved)}
+            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+          >
+            {showResolved ? <BellOff className="w-3 h-3" /> : <Bell className="w-3 h-3" />}
+            {showResolved ? t('alerts.all') : t('alerts.unresolved')}
+          </button>
+        </div>
       </div>
 
       {displayed.length === 0 ? (
