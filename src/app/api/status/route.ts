@@ -45,11 +45,11 @@ export async function GET() {
 
   const perfLogs: PerfLog[] = [];
   for (const m of perfMembers) {
-    try { perfLogs.push(JSON.parse(m) as PerfLog); } catch { /* skip */ }
+    try { perfLogs.push((typeof m === 'string' ? JSON.parse(m) : m) as PerfLog); } catch { /* skip */ }
   }
   const snapshots: ThemeSnap[] = [];
   for (const m of snapshotMembers) {
-    try { snapshots.push(JSON.parse(m) as ThemeSnap); } catch { /* skip */ }
+    try { snapshots.push((typeof m === 'string' ? JSON.parse(m) : m) as ThemeSnap); } catch { /* skip */ }
   }
 
   // Latest per platform

@@ -46,14 +46,13 @@ function writeJSON<T>(filePath: string, data: T) {
 
 export async function getPerformanceLogs(): Promise<PerformanceLog[]> {
   if (isKvConfigured()) {
-    // Sorted Set by timestamp score
     const now = Date.now();
-    const since = now - 7 * 24 * 60 * 60 * 1000; // last 7 days
+    const since = now - 7 * 24 * 60 * 60 * 1000;
     const members = await kvZrangebyscore(KV_ZSET_PERF, since, now, 500);
     const logs: PerformanceLog[] = [];
     for (const m of members) {
       try {
-        logs.push(JSON.parse(m) as PerformanceLog);
+        logs.push((typeof m === 'string' ? (typeof m === 'string' ? JSON.parse(m) : m) : m) as PerformanceLog);
       } catch { /* skip corrupt entries */ }
     }
     return logs;
@@ -83,7 +82,7 @@ export async function getThemeSnapshots(): Promise<ThemeSnapshot[]> {
     const snapshots: ThemeSnapshot[] = [];
     for (const m of members) {
       try {
-        snapshots.push(JSON.parse(m) as ThemeSnapshot);
+        snapshots.push((typeof m === 'string' ? JSON.parse(m) : m) as ThemeSnapshot);
       } catch { /* skip corrupt entries */ }
     }
     return snapshots;
@@ -210,7 +209,7 @@ export async function getMetricsHistory(
   const entries: MetricsEntry[] = [];
   for (const m of members) {
     try {
-      entries.push(JSON.parse(m) as MetricsEntry);
+      entries.push((typeof m === 'string' ? JSON.parse(m) : m) as MetricsEntry);
     } catch { /* skip corrupt entries */ }
   }
   return entries;
