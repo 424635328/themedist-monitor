@@ -130,25 +130,41 @@ export default function MetricsPanel() {
           {(['vercel', 'netlify'] as const).map((platform) => {
             const d7 = metrics.sla[platform].d7;
             const d30 = metrics.sla[platform].d30;
-            const barColor = (v: number) => v >= 99.9 ? 'bg-emerald-500' : v >= 99 ? 'bg-yellow-500' : 'bg-red-500';
-            const textColor = (v: number) => v >= 99.9 ? 'text-emerald-400' : v >= 99 ? 'text-yellow-400' : 'text-red-400';
+            function slaHue(pct: number) { return Math.min((pct / 100) * 120, 120); }
+            function slaBarBg(h: number, pct: number) {
+              const s = pct >= 90 ? 65 : 75;
+              const l = pct >= 90 ? 43 : 46;
+              const gl = pct >= 90 ? 58 : 50;
+              return { bg: `hsl(${h.toFixed(0)}, ${s}%, ${l}%)`, glow: `hsla(${h.toFixed(0)}, ${s}%, ${gl}%, 0.25)` };
+            }
+            function slaText(h: number, pct: number) {
+              return `hsl(${h.toFixed(0)}, 80%, ${pct >= 90 ? 68 : 55}%)`;
+            }
             return (
               <div key={platform} className="bg-[#1a1a22] rounded-lg p-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-medium text-zinc-300 capitalize">{platform}</span>
                 </div>
-                {[{ label: '7 天', v: d7 }, { label: '30 天', v: d30 }].map(({ label, v }) => (
+                {[{ label: '7 天', v: d7 }, { label: '30 天', v: d30 }].map(({ label, v }) => {
+                  const h = slaHue(v);
+                  const bar = slaBarBg(h, v);
+                  return (
                   <div key={label} className="flex items-center gap-3 mb-1.5 last:mb-0">
                     <span className="text-[10px] text-zinc-500 w-8 text-right">{label}</span>
                     <div className="flex-1 h-2 bg-[#0d0d12] rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all duration-700 ${barColor(v)}`}
-                        style={{ width: `${Math.min(v, 100)}%` }}
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width: `${Math.min(v, 100)}%`,
+                          background: bar.bg,
+                          boxShadow: v >= 90 ? `0 0 8px ${bar.glow}` : undefined,
+                        }}
                       />
                     </div>
-                    <span className={`text-xs font-bold font-mono w-14 ${textColor(v)}`}>{v}%</span>
+                    <span className="text-xs font-bold font-mono w-14" style={{ color: slaText(h, v) }}>{v}%</span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             );
           })}

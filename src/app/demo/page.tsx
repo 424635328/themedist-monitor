@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useLanguage } from '@/lib/i18n';
 
 // ================= 类型定义 =================
 interface DirectoryItem {
@@ -37,6 +38,7 @@ const MONITORED_VARS = [
 ];
 
 export default function ThemeDist() {
+  const { t } = useLanguage();
   // ================= 状态管理 =================
   const [activeTheme, setActiveTheme] = useState<ThemePayload | null>(null);
   const [directory, setDirectory] = useState<DirectoryItem[]>([]);
@@ -237,12 +239,12 @@ export default function ThemeDist() {
         {/* 巨幕区 */}
         <section className="hero-section">
           <h1>
-            边缘实时计算的
+            {t('demo.hero1')}
             <br />
-            <span>今日视觉轮换</span>
+            <span>{t('demo.hero2')}</span>
           </h1>
           <p className="hero-subtitle">
-            注入 34 个 CSS 变量与专属定制动画，零延迟、无阻塞、赋能全站动态美感。
+            {t('demo.heroSub')}
           </p>
           <button
             className="btn btn-primary"
@@ -250,7 +252,7 @@ export default function ThemeDist() {
             onClick={() => loadPreset('today')}
             disabled={isLoading}
           >
-            ⚡ {isLoading ? '加载中...' : '还原今日官方主题'}
+            ⚡ {isLoading ? t('demo.loading') : t('demo.restore')}
           </button>
         </section>
 
@@ -258,26 +260,26 @@ export default function ThemeDist() {
         <section className="theme-dashboard">
           <div className="meta-panel">
             <div>
-              <div className="meta-label">Current Preset</div>
+              <div className="meta-label">{t('demo.currentPreset')}</div>
               <div className="meta-value" id="theme-name">
                 {activeTheme?.presetName || '...'}
               </div>
-              <div className="meta-label">Status</div>
+              <div className="meta-label">{t('alerts.modal.status')}</div>
               <div className="preset-chip" id="preset-id">
                 {activeTheme?.preset || '...'}
               </div>
             </div>
             <div style={{ marginTop: '2rem' }}>
-              <div className="meta-label">API Status</div>
+              <div className="meta-label">{t('demo.status')}</div>
               <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                此卡片实时提取并投射当前客户端 :root 下的 CSS 自定义属性。
+                {t('demo.cssDesc')}
               </p>
             </div>
           </div>
 
           <div>
             <div className="meta-label" style={{ marginBottom: '1rem' }}>
-              Active CSS Custom Properties
+              {t('demo.activeVars')}
             </div>
             <div className="variables-spec" id="spec-container">
               {MONITORED_VARS.map((vName) => {
@@ -291,7 +293,7 @@ export default function ThemeDist() {
                     <div className="spec-info">
                       <div className="spec-name">{vName}</div>
                       <div className="spec-val" title={val}>
-                        {val || '加载中...'}
+                        {val || t('demo.loading')}
                       </div>
                     </div>
                   </div>
@@ -303,32 +305,32 @@ export default function ThemeDist() {
 
         {/* 交互式组件效果演练 */}
         <section className="lab-section">
-          <h2 className="section-title">✨ UI 渲染表现测试</h2>
+          <h2 className="section-title">✨ {t('demo.uiTest')}</h2>
           <div className="showcase-grid">
             <div className="showcase-card">
-              <h3>交互元素 / Buttons</h3>
+              <h3>{t('demo.buttons')}</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <button className="btn btn-primary">Primary Action</button>
-                <button className="btn btn-secondary">Secondary Action</button>
+                <button className="btn btn-primary">{t('demo.primaryAction')}</button>
+                <button className="btn btn-secondary">{t('demo.secondaryAction')}</button>
               </div>
             </div>
             <div className="showcase-card">
-              <h3>输入响应 / Fields</h3>
+              <h3>{t('demo.fields')}</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <input
                   type="text"
                   className="input-demo"
-                  placeholder="Focus here to see accent color..."
+                  placeholder={t('demo.fieldPlaceholder')}
                 />
                 <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                  输入框焦点态会利用 <code>--color-primary</code> 产生呼吸发光边框。
+                  {t('demo.focusHint')}
                 </p>
               </div>
             </div>
             <div className="showcase-card">
-              <h3>高阶视觉 / Shadows & Rounded</h3>
+              <h3>{t('demo.shadows')}</h3>
               <p style={{ fontSize: '0.85rem', marginBottom: '1rem', color: 'var(--color-text-muted)' }}>
-                当前边角圆角弧度受控于 <code>--radii</code>。阴影受控于 <code>--shadow-md</code> 变量。
+                {t('demo.glassCaption')}
               </p>
               <div
                 style={{
@@ -340,7 +342,7 @@ export default function ThemeDist() {
                 }}
               >
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
-                  Glass Container
+                  {t('demo.glassLabel')}
                 </span>
               </div>
             </div>
@@ -349,10 +351,9 @@ export default function ThemeDist() {
 
         {/* 主题实验室：目录 */}
         <section className="lab-section">
-          <h2 className="section-title">🧪 视觉交互实验室 (Theme Studio)</h2>
+          <h2 className="section-title">🧪 {t('demo.lab')}</h2>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '0.95rem', marginBottom: '1.5rem' }}>
-            以下列表为该 API 分发的全套预设主题（共 147 种）。点击下方卡片即可
-            <b>全站实时换肤</b>（包括背景、文字、粒子甚至自定义 CSS 特效）。
+            {t('demo.labDesc')}
           </p>
           <div className="directory-grid" id="directory-container">
             {directory.map((item) => {
@@ -382,7 +383,7 @@ export default function ThemeDist() {
 
         {/* 页脚 */}
         <footer>
-          ThemeDist Platform · CDN Dynamic Distribution Engine · Built for High-Performance Web
+          {t('demo.footer')}
         </footer>
       </div>
     </>

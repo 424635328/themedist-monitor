@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import { Copy, Check } from 'lucide-react';
+import { useLanguage } from '@/lib/i18n';
 
 export default function CopyAllButton({ text }: { text: string }) {
+  const { t } = useLanguage();
   const [copied, setCopied] = useState(false);
 
   function handleCopy() {
@@ -23,7 +25,7 @@ export default function CopyAllButton({ text }: { text: string }) {
       ) : (
         <Copy className="w-3.5 h-3.5" />
       )}
-      {copied ? '已复制！' : '一键复制全部'}
+      {copied ? t('copyAll.copied') : t('copyAll.copy')}
     </button>
   );
 }

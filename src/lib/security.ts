@@ -147,6 +147,7 @@ interface ThemeEntry {
   name?: string;
   author?: string;
   status?: string;
+  createdAt?: number;
   customCss?: string;
   cssVars?: Record<string, string>;
   extensions?: Array<{ type?: string; html?: string; [k: string]: unknown }>;
@@ -157,6 +158,7 @@ interface ThemeScanResult {
   name: string;
   author: string;
   status: string;
+  createdAt: number;
   flaggedReasons: string[];
   bypassedSanitizers: string[];
 }
@@ -168,6 +170,7 @@ export function scanThemeEntry(theme: ThemeEntry): ThemeScanResult | null {
   const name = theme.name || 'unknown';
   const author = theme.author || '';
   const status = theme.status || 'unknown';
+  const createdAt = theme.createdAt || 0;
 
   // themedist docs say: name ≤100 chars, HTML tags stripped
   // themedist docs say: author ≤50 chars, HTML tags stripped
@@ -260,5 +263,5 @@ export function scanThemeEntry(theme: ThemeEntry): ThemeScanResult | null {
   // Deduplicate bypassed sanitizer list
   const uniqueBypassed = [...new Set(bypassed)];
 
-  return { id, name, author, status, flaggedReasons: reasons, bypassedSanitizers: uniqueBypassed };
+  return { id, name, author, status, createdAt, flaggedReasons: reasons, bypassedSanitizers: uniqueBypassed };
 }

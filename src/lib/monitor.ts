@@ -398,9 +398,12 @@ export async function runAllChecks() {
       const result = scanThemeEntry({
         id: themeId,
         name: t.name as string,
+        author: t.author as string,
+        status: t.status as string,
         customCss: t.customCss as string,
         cssVars: t.cssVars as Record<string, string>,
         extensions: t.extensions as Array<{ type?: string; html?: string }>,
+        createdAt: t.createdAt as number,
       });
 
       if (result) {
@@ -431,13 +434,25 @@ export async function runAllChecks() {
           ? `  绕过清洗  :\n${f.bypassedSanitizers.map((s) => `    ⚠ ${s}`).join('\n')}\n`
           : '';
         const authorInfo = f.author ? `  作者      : ${f.author.slice(0, 60)}\n` : '';
-        const statusInfo = `  状态      : ${f.status}\n`;
+        const statusLabel = f.status === 'approved' ? '已批准 (可被轮换激活)'
+          : f.status === 'pending' ? '待审核 (尚未生效)'
+          : f.status === 'rejected' ? '已拒绝'
+          : `未知 (${f.status || 'N/A'})`;
+        const statusRisk = f.status === 'approved' ? '⚠ 高风险：该主题可能已被激活'
+          : f.status === 'pending' ? 'ℹ 低风险：尚未通过审核，但仍需关注'
+          : f.status === 'rejected' ? '✓ 已拒绝，不会生效'
+          : '';
+        const createdAtStr = f.createdAt ? new Date(f.createdAt).toLocaleDateString('zh-CN') : '';
+        const createdAtInfo = createdAtStr ? `  提交日期  : ${createdAtStr}\n` : '';
+        const statusInfo = `  状态      : ${statusLabel}\n`;
         return [
           `━━━ ${f.name} ━━━`,
           `  Theme ID  : ${f.id}`,
           statusInfo,
+          createdAtInfo,
           authorInfo,
           `  攻击类型  : ${types}`,
+          statusRisk ? `  风险评估  : ${statusRisk}\n` : '',
           bypassInfo,
           `  详情      :`,
           ...f.flaggedReasons.map((r) => `    • ${r}`),
