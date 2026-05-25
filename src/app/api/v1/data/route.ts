@@ -56,7 +56,7 @@ export async function GET() {
   );
 
   const unresolvedAlerts = alerts.filter((a) => !a.resolved);
-  const recentAlerts = alerts.slice(-20).reverse();
+  const recentAlerts = alerts.slice(0, 20);
 
   // SLA calculation: 7-day and 30-day
   function calcSla(platform: string, days: number): number {
