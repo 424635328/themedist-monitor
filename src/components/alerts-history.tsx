@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Bell, BellOff, AlertTriangle, ServerCrash, Database, FileWarning, Copy, Check } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { Bell, BellOff, AlertTriangle, ServerCrash, Database, FileWarning, Copy, Check, X } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import type { SystemAlert } from '@/types';
 
@@ -26,6 +26,30 @@ export default function AlertsHistory() {
   }, []);
 
   const displayed = showResolved ? alerts : alerts.filter((a) => !a.resolved);
+
+  const resolveOne = useCallback(async (alertId: string) => {
+    try {
+      const res = await fetch('/api/alerts/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: alertId }),
+      });
+      const data = await res.json();
+      setAlerts(data.alerts?.recent || []);
+    } catch {}
+  }, []);
+
+  const resolveAll = useCallback(async () => {
+    try {
+      const res = await fetch('/api/alerts/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      setAlerts(data.alerts?.recent || []);
+    } catch {}
+  }, []);
 
   async function copyAlerts() {
     const text = displayed
@@ -69,13 +93,25 @@ export default function AlertsHistory() {
         </div>
         <div className="flex items-center gap-2">
           {displayed.length > 0 && (
-            <button
-              onClick={copyAlerts}
-              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
-            >
+            <>
+              {!showResolved && (
+                <button
+                  onClick={resolveAll}
+                  className="text-xs text-zinc-500 hover:text-red-400 transition-colors flex items-center gap-1"
+                  title="Resolve all"
+                >
+                  <X className="w-3 h-3" />
+                  {t('alerts.resolveAll')}
+                </button>
+              )}
+              <button
+                onClick={copyAlerts}
+                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+              >
               {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
               {copied ? t('alerts.copied') : t('alerts.copy')}
             </button>
+            </>
           )}
           <button
             onClick={() => setShowResolved(!showResolved)}
@@ -109,6 +145,15 @@ export default function AlertsHistory() {
                   </span>
                   {alert.resolved && (
                     <span className="text-green-500 text-[10px]">{t('alerts.resolved')}</span>
+                  )}
+                  {!alert.resolved && (
+                    <button
+                      onClick={() => resolveOne(alert.id)}
+                      className="ml-auto text-zinc-600 hover:text-red-400 transition-colors"
+                      title={t('alerts.dismiss')}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
                   )}
                 </div>
                 <div className="text-zinc-500 truncate">{alert.details}</div>

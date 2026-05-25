@@ -8,11 +8,13 @@ import MetricsPanel from '@/components/metrics-panel';
 import ThemeAudit from '@/components/theme-audit';
 import AlertsHistory from '@/components/alerts-history';
 import FailoverGuide from '@/components/failover-guide';
+import ThemeDistTheme from '@/components/theme-dist-theme';
 
 export default function Home() {
   const { t } = useLanguage();
   const [running, setRunning] = useState(false);
   const [lastRun, setLastRun] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [message, setMessage] = useState('');
   const [isAlert, setIsAlert] = useState(false);
   const debounceRef = useRef(0);
@@ -34,6 +36,7 @@ export default function Home() {
       } else {
         setMessage(t('page.allPassed'));
       }
+      setRefreshKey((k) => k + 1); // force child components to re-fetch
     } catch {
       setMessage(t('page.checkFailed'));
       setIsAlert(true);
@@ -52,6 +55,7 @@ export default function Home() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <ThemeDistTheme />
           <a
             href="/api-docs"
             className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium text-white bg-purple-600 hover:bg-purple-500 transition-colors"
@@ -94,11 +98,11 @@ export default function Home() {
           <MetricsPanel />
         </div>
         <div>
-          <ThemeAudit />
+          <ThemeAudit key={refreshKey} />
         </div>
       </div>
 
-      <AlertsHistory />
+      <AlertsHistory key={refreshKey} />
       <FailoverGuide />
     </div>
   );

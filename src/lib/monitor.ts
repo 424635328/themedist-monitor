@@ -1,6 +1,6 @@
 import type { PerformanceLog, ThemeSnapshot, SystemAlert, TodayJsonResponse } from '@/types';
 import { validateTodayJson } from './validator';
-import { scanExtended } from './security';
+import { scanExtended, scanThemeEntry } from './security';
 import { addPerformanceLog, addThemeSnapshot, addSystemAlert, addMetricsEntry } from './store';
 import { notifyAlert } from './notifier';
 import { fetchWithProxy } from './fetch-proxy';
@@ -95,7 +95,7 @@ async function checkDiyEndpoint(): Promise<DiyFetchResult> {
     const latencyMs = Math.round(performance.now() - start);
     let data: unknown;
     try { data = await response.json(); } catch { data = null; }
-    const isDegraded = response.status !== 200 || (Array.isArray(data) && data.length === 0);
+    const isDegraded = response.status !== 200 || (Array.isArray(data) && data.length === 0) || data === null;
     return { statusCode: response.status, latencyMs, data, isDegraded };
   } catch (err) {
     const latencyMs = Math.round(performance.now() - start);
@@ -153,40 +153,56 @@ export async function runAllChecks() {
     if (result.statusCode !== 200 && result.statusCode !== 0) {
       const count = await trackFailure(result.platform, 'OUTAGE');
       if (count >= FAILURE_THRESHOLD) {
-        const alert: SystemAlert = {
-          id: generateId(), timestamp: now, type: 'OUTAGE',
-          platform: result.platform,
-          message: `${result.platform} returned status ${result.statusCode} (failure #${count})`,
-          details: `Endpoint: ${ENDPOINTS[result.platform]}, Response Time: ${result.latencyMs}ms`,
-          resolved: false,
-        };
-        await addSystemAlert(alert);
-        results.alerts.push(alert);
-        const cooling = await isAlertCooling(`OUTAGE:${result.platform}`);
-        if (!cooling) {
-          const sent = await notifyAlert(alert);
-          if (sent) results.notificationsSent++;
-          await setAlertCooldown(`OUTAGE:${result.platform}`);
+        // Deduplicate: skip if unresolved OUTAGE already exists for this platform
+        const existingAlerts = await getSystemAlerts();
+        const alreadyAlerted = existingAlerts.some(
+          (a) => !a.resolved && a.type === 'OUTAGE' && a.platform === result.platform
+        );
+
+        if (!alreadyAlerted) {
+          const alert: SystemAlert = {
+            id: generateId(), timestamp: now, type: 'OUTAGE',
+            platform: result.platform,
+            message: `${result.platform} returned status ${result.statusCode} (failure #${count})`,
+            details: `Endpoint: ${ENDPOINTS[result.platform]}, Response Time: ${result.latencyMs}ms`,
+            resolved: false,
+          };
+          await addSystemAlert(alert);
+          results.alerts.push(alert);
+          const cooling = await isAlertCooling(`OUTAGE:${result.platform}`);
+          if (!cooling) {
+            const sent = await notifyAlert(alert);
+            if (sent) results.notificationsSent++;
+            await setAlertCooldown(`OUTAGE:${result.platform}`);
+          }
         }
       }
     }
     if (result.error) {
       const count = await trackFailure(result.platform, 'OUTAGE');
       if (count >= FAILURE_THRESHOLD) {
-        const alert: SystemAlert = {
-          id: generateId(), timestamp: now, type: 'OUTAGE',
-          platform: result.platform,
-          message: `${result.platform} unreachable: ${result.error} (failure #${count})`,
-          details: `Endpoint: ${ENDPOINTS[result.platform]}`,
-          resolved: false,
-        };
-        await addSystemAlert(alert);
-        results.alerts.push(alert);
-        const cooling = await isAlertCooling(`OUTAGE:${result.platform}`);
-        if (!cooling) {
-          const sent = await notifyAlert(alert);
-          if (sent) results.notificationsSent++;
-          await setAlertCooldown(`OUTAGE:${result.platform}`);
+        // Deduplicate: skip if unresolved OUTAGE already exists for this platform
+        const existingAlerts = await getSystemAlerts();
+        const alreadyAlerted = existingAlerts.some(
+          (a) => !a.resolved && a.type === 'OUTAGE' && a.platform === result.platform
+        );
+
+        if (!alreadyAlerted) {
+          const alert: SystemAlert = {
+            id: generateId(), timestamp: now, type: 'OUTAGE',
+            platform: result.platform,
+            message: `${result.platform} unreachable: ${result.error} (failure #${count})`,
+            details: `Endpoint: ${ENDPOINTS[result.platform]}`,
+            resolved: false,
+          };
+          await addSystemAlert(alert);
+          results.alerts.push(alert);
+          const cooling = await isAlertCooling(`OUTAGE:${result.platform}`);
+          if (!cooling) {
+            const sent = await notifyAlert(alert);
+            if (sent) results.notificationsSent++;
+            await setAlertCooldown(`OUTAGE:${result.platform}`);
+          }
         }
       }
     }
@@ -220,71 +236,275 @@ export async function runAllChecks() {
     results.themeSnapshot = snapshot;
 
     if (!validation.valid) {
-      const alert: SystemAlert = {
-        id: generateId(), timestamp: now, type: 'SCHEMA_MISMATCH',
-        platform: 'both',
-        message: 'Schema validation failed for /api/today.json',
-        details: validation.errors.join('; '),
-        resolved: false,
-      };
-      await addSystemAlert(alert);
-      results.alerts.push(alert);
-      const cooling = await isAlertCooling('SCHEMA_MISMATCH');
-      if (!cooling) {
-        const sent = await notifyAlert(alert);
-        if (sent) results.notificationsSent++;
-        await setAlertCooldown('SCHEMA_MISMATCH');
+      const detailStr = validation.errors.join('; ');
+
+      // Deduplicate: skip if same unresolved alert already exists
+      const existingAlerts = await getSystemAlerts();
+      const alreadyAlerted = existingAlerts.some(
+        (a) => !a.resolved && a.type === 'SCHEMA_MISMATCH' && a.details === detailStr
+      );
+
+      if (!alreadyAlerted) {
+        for (const err of validation.errors) {
+          await logSecurityIncident({
+            type: 'SCHEMA_MISMATCH',
+            field: 'schema',
+            payload: err,
+            ip: 'monitor-internal',
+          });
+        }
+
+        const alert: SystemAlert = {
+          id: generateId(), timestamp: now, type: 'SCHEMA_MISMATCH',
+          platform: 'both',
+          message: `Schema validation failed: ${validation.errors.length} error(s)`,
+          details: [
+            detailStr,
+            '—',
+            'Remediation: Check themedist /api/today.json response structure.',
+            'Ensure all required fields (date, preset, presetName, cssVars) are present.',
+          ].join('\n'),
+          resolved: false,
+        };
+        await addSystemAlert(alert);
+        results.alerts.push(alert);
+        const cooling = await isAlertCooling('SCHEMA_MISMATCH');
+        if (!cooling) {
+          const sent = await notifyAlert(alert);
+          if (sent) results.notificationsSent++;
+          await setAlertCooldown('SCHEMA_MISMATCH');
+        }
       }
     }
 
-    // Auto-resolve old security/schema alerts when safe
-    if (securityCheck.isSafe && validation.valid) {
+    // Auto-resolve security alerts when scan is clean (regardless of schema)
+    if (securityCheck.isSafe) {
       const existingAlerts = await getSystemAlerts();
       for (const alert of existingAlerts) {
-        if (!alert.resolved && (alert.type === 'SECURITY_BREACH' || alert.type === 'SCHEMA_MISMATCH')) {
+        if (!alert.resolved && alert.type === 'SECURITY_BREACH') {
+          await resolveAlert(alert.id);
+        }
+      }
+    }
+
+    // Auto-resolve schema alerts when validation passes (regardless of security)
+    if (validation.valid) {
+      const existingAlerts = await getSystemAlerts();
+      for (const alert of existingAlerts) {
+        if (!alert.resolved && alert.type === 'SCHEMA_MISMATCH') {
           await resolveAlert(alert.id);
         }
       }
     }
 
     if (!securityCheck.isSafe) {
-      // Log each flagged reason as a security incident
-      for (const reason of securityCheck.flaggedReasons) {
-        await logSecurityIncident({
-          type: 'XSS_ATTACK',
-          field: 'root',
-          payload: reason,
-          ip: 'monitor-internal',
-        });
-      }
+      const detailStr = securityCheck.flaggedReasons.join('\n');
+      const summary = securityCheck.flaggedReasons.length === 1
+        ? securityCheck.flaggedReasons[0]
+        : `${securityCheck.flaggedReasons.length} issues detected`;
 
-      const alert: SystemAlert = {
-        id: generateId(), timestamp: now, type: 'SECURITY_BREACH',
-        platform: 'both',
-        message: "Security threat detected in today's theme!",
-        details: securityCheck.flaggedReasons.join('; '),
-        resolved: false,
-      };
-      await addSystemAlert(alert);
-      results.alerts.push(alert);
+      // Deduplicate: skip if same unresolved alert already exists
+      const existingAlerts = await getSystemAlerts();
+      const alreadyAlerted = existingAlerts.some(
+        (a) => !a.resolved && a.type === 'SECURITY_BREACH' && a.details === detailStr
+      );
 
-      // Alert cooldown — don't spam the same security alert within 1 hour
-      const cooling = await isAlertCooling('SECURITY_BREACH');
-      if (!cooling) {
-        const sent = await notifyAlert(alert);
-        if (sent) results.notificationsSent++;
-        await setAlertCooldown('SECURITY_BREACH');
+      if (!alreadyAlerted) {
+        // Log each flagged reason as a security incident
+        for (const reason of securityCheck.flaggedReasons) {
+          await logSecurityIncident({
+            type: 'XSS_ATTACK',
+            field: 'root',
+            payload: reason,
+            ip: 'monitor-internal',
+          });
+        }
+
+        const alert: SystemAlert = {
+          id: generateId(), timestamp: now, type: 'SECURITY_BREACH',
+          platform: 'both',
+          message: `XSS scan: ${summary}`,
+          details: [
+            detailStr,
+            '—',
+            'Remediation: Review flagged themes in themedist admin dashboard.',
+            'If false positive (e.g., "alert(" in a theme name): rename the theme entry.',
+            'If real threat: remove the malicious content from the theme data source.',
+          ].join('\n'),
+          resolved: false,
+        };
+        await addSystemAlert(alert);
+        results.alerts.push(alert);
+
+        const cooling = await isAlertCooling('SECURITY_BREACH');
+        if (!cooling) {
+          const sent = await notifyAlert(alert);
+          if (sent) results.notificationsSent++;
+          await setAlertCooldown('SECURITY_BREACH');
+        }
       }
     }
 
-    if (!validation.valid) {
-      for (const err of validation.errors) {
-        await logSecurityIncident({
-          type: 'SCHEMA_MISMATCH',
-          field: 'schema',
-          payload: err,
-          ip: 'monitor-internal',
-        });
+  }
+
+  // Scan community/DIY themes for XSS in CSS & extensions
+  // Uses KV cache to avoid re-scanning themes already known to be clean.
+  // Full re-scan forced every 24 hours or when the cache key is invalidated.
+  // DIY endpoint returns { themes: [...], total, dbAvailable } — extract the array.
+  const diyThemes: Record<string, unknown>[] = (() => {
+    if (Array.isArray(diyResult.data)) return diyResult.data as Record<string, unknown>[];
+    if (diyResult.data && typeof diyResult.data === 'object') {
+      const obj = diyResult.data as Record<string, unknown>;
+      const arr = obj.themes || obj.data;
+      if (Array.isArray(arr)) return arr as Record<string, unknown>[];
+    }
+    return [];
+  })();
+
+  if (diyThemes.length > 0) {
+    const CACHE_KEY = 'cache:scan:community';
+    const CACHE_TTL_KEY = 'cache:scan:community:full';
+    const CACHE_TTL_SECONDS = 24 * 3600; // 24h full re-scan
+
+    let scanCache: Record<string, string> = {};
+
+    // Read KV scan cache; skip if no KV (local dev without credentials)
+    if (isKvConfigured()) {
+      const rawCache = await kvGet<string>(CACHE_KEY, '');
+      if (rawCache) {
+        try { scanCache = JSON.parse(rawCache); } catch { scanCache = {}; }
+      }
+
+      // Force full re-scan if TTL key expired
+      const ttlExists = await kvGet<string>(CACHE_TTL_KEY, '');
+      if (!ttlExists) {
+        scanCache = {}; // clear cache → full re-scan
+        await kvSet(CACHE_TTL_KEY, String(Date.now()), { ex: CACHE_TTL_SECONDS });
+      }
+    }
+
+    const findings: NonNullable<ReturnType<typeof scanThemeEntry>>[] = [];
+    const updatedCache: Record<string, string> = {};
+
+    for (const t of diyThemes) {
+      // DIY themes use "id" as the unique key (not "preset")
+      const themeId = (t.id as string) || (t.preset as string) || '';
+      // Skip if already scanned and clean (in cache with "ok")
+      if (scanCache[themeId] === 'ok') {
+        updatedCache[themeId] = 'ok';
+        continue;
+      }
+
+      const result = scanThemeEntry({
+        id: themeId,
+        name: t.name as string,
+        customCss: t.customCss as string,
+        cssVars: t.cssVars as Record<string, string>,
+        extensions: t.extensions as Array<{ type?: string; html?: string }>,
+      });
+
+      if (result) {
+        findings.push(result);
+        updatedCache[themeId] = 'flag';
+      } else {
+        updatedCache[themeId] = 'ok';
+      }
+    }
+
+    // Persist updated cache
+    if (isKvConfigured()) {
+      await kvSet(CACHE_KEY, JSON.stringify(updatedCache));
+    }
+
+    if (findings.length > 0) {
+      const presetList = findings.map((f) => f.id).join(', ');
+      const lines = findings.map((f) => {
+        const attackTypes = new Set<string>();
+        for (const r of f.flaggedReasons) {
+          if (r.includes('cssVars')) attackTypes.add('CSS变量注入');
+          else if (r.includes('customCss')) attackTypes.add('CSS注入');
+          else if (r.includes('extensions')) attackTypes.add('HTML注入');
+          else if (r.includes('author')) attackTypes.add('作者字段注入');
+        }
+        const types = [...attackTypes].join('+') || '未知';
+        const bypassInfo = f.bypassedSanitizers.length > 0
+          ? `  绕过清洗  :\n${f.bypassedSanitizers.map((s) => `    ⚠ ${s}`).join('\n')}\n`
+          : '';
+        const authorInfo = f.author ? `  作者      : ${f.author.slice(0, 60)}\n` : '';
+        const statusInfo = `  状态      : ${f.status}\n`;
+        return [
+          `━━━ ${f.name} ━━━`,
+          `  Theme ID  : ${f.id}`,
+          statusInfo,
+          authorInfo,
+          `  攻击类型  : ${types}`,
+          bypassInfo,
+          `  详情      :`,
+          ...f.flaggedReasons.map((r) => `    • ${r}`),
+          '',
+        ].join('\n');
+      });
+      const sanitizerSummary = (() => {
+        const allBypassed = new Set<string>();
+        for (const f of findings) for (const s of f.bypassedSanitizers) allBypassed.add(s);
+        return allBypassed.size > 0
+          ? ` | ${allBypassed.size} sanitizer rule(s) bypassed`
+          : '';
+      })();
+      const detailStr = lines.join('\n');
+      const summary = `${findings.length} community themes (${presetList}) contain XSS payloads${sanitizerSummary}`;
+
+      // Deduplicate
+      const existingAlerts = await getSystemAlerts();
+      const alreadyAlerted = existingAlerts.some(
+        (a) => !a.resolved && a.type === 'SECURITY_BREACH' && a.platform === 'community' && a.details === detailStr
+      );
+
+      if (!alreadyAlerted) {
+        for (const f of findings) {
+          for (const reason of f.flaggedReasons) {
+            await logSecurityIncident({
+              type: 'XSS_ATTACK',
+              field: `community:${f.id}`,
+              payload: reason,
+              ip: 'monitor-internal',
+            });
+          }
+        }
+
+        const alert: SystemAlert = {
+          id: generateId(), timestamp: now, type: 'SECURITY_BREACH',
+          platform: 'community',
+          message: `Community theme scan: ${summary}`,
+          details: [
+            detailStr,
+            '—',
+            'Remediation:',
+            '  1. Delete these themes via themedist admin or Redis (see IDs above).',
+            '  2. Fix themedist submission sanitizer — these payloads bypassed documented rules.',
+            '  3. The /api/diy/submit.json endpoint should strip on* events, <script>,',
+            '     <iframe>, javascript:, expression(), @import, and url(http) from all fields.',
+            '  4. Add JS function-call detection to author field validation (fetch/eval blocked).',
+          ].join('\n'),
+          resolved: false,
+        };
+        await addSystemAlert(alert);
+        results.alerts.push(alert);
+
+        const cooling = await isAlertCooling('SECURITY_BREACH:community');
+        if (!cooling) {
+          const sent = await notifyAlert(alert);
+          if (sent) results.notificationsSent++;
+          await setAlertCooldown('SECURITY_BREACH:community');
+        }
+      }
+    } else {
+      // Auto-resolve old community security alerts when scan is clean
+      const existingAlerts = await getSystemAlerts();
+      for (const alert of existingAlerts) {
+        if (!alert.resolved && alert.type === 'SECURITY_BREACH' && alert.platform === 'community') {
+          await resolveAlert(alert.id);
+        }
       }
     }
   }
@@ -304,20 +524,27 @@ export async function runAllChecks() {
   if (diyResult.isDegraded && diyResult.statusCode === 200) {
     const count = await trackFailure('system', 'DB_DOWN');
     if (count >= FAILURE_THRESHOLD) {
-      const alert: SystemAlert = {
-        id: generateId(), timestamp: now, type: 'DB_DOWN',
-        platform: 'system',
-        message: 'DIY themes endpoint returned empty results — possible Redis degradation',
-        details: `Status: ${diyResult.statusCode}, Latency: ${diyResult.latencyMs}ms (failure #${count})`,
-        resolved: false,
-      };
-      await addSystemAlert(alert);
-      results.alerts.push(alert);
-      const cooling = await isAlertCooling('DB_DOWN');
-      if (!cooling) {
-        const sent = await notifyAlert(alert);
-        if (sent) results.notificationsSent++;
-        await setAlertCooldown('DB_DOWN');
+      const existingAlerts = await getSystemAlerts();
+      const alreadyAlerted = existingAlerts.some(
+        (a) => !a.resolved && a.type === 'DB_DOWN'
+      );
+
+      if (!alreadyAlerted) {
+        const alert: SystemAlert = {
+          id: generateId(), timestamp: now, type: 'DB_DOWN',
+          platform: 'system',
+          message: 'DIY themes endpoint returned empty results — possible Redis degradation',
+          details: `Status: ${diyResult.statusCode}, Latency: ${diyResult.latencyMs}ms (failure #${count})`,
+          resolved: false,
+        };
+        await addSystemAlert(alert);
+        results.alerts.push(alert);
+        const cooling = await isAlertCooling('DB_DOWN');
+        if (!cooling) {
+          const sent = await notifyAlert(alert);
+          if (sent) results.notificationsSent++;
+          await setAlertCooldown('DB_DOWN');
+        }
       }
     }
   }
@@ -325,20 +552,27 @@ export async function runAllChecks() {
   if (diyResult.error) {
     const count = await trackFailure('system', 'DB_DOWN');
     if (count >= FAILURE_THRESHOLD) {
-      const alert: SystemAlert = {
-        id: generateId(), timestamp: now, type: 'DB_DOWN',
-        platform: 'system',
-        message: 'DIY themes endpoint unreachable',
-        details: diyResult.error + ` (failure #${count})`,
-        resolved: false,
-      };
-      await addSystemAlert(alert);
-      results.alerts.push(alert);
-      const cooling = await isAlertCooling('DB_DOWN');
-      if (!cooling) {
-        const sent = await notifyAlert(alert);
-        if (sent) results.notificationsSent++;
-        await setAlertCooldown('DB_DOWN');
+      const existingAlerts = await getSystemAlerts();
+      const alreadyAlerted = existingAlerts.some(
+        (a) => !a.resolved && a.type === 'DB_DOWN'
+      );
+
+      if (!alreadyAlerted) {
+        const alert: SystemAlert = {
+          id: generateId(), timestamp: now, type: 'DB_DOWN',
+          platform: 'system',
+          message: 'DIY themes endpoint unreachable',
+          details: diyResult.error + ` (failure #${count})`,
+          resolved: false,
+        };
+        await addSystemAlert(alert);
+        results.alerts.push(alert);
+        const cooling = await isAlertCooling('DB_DOWN');
+        if (!cooling) {
+          const sent = await notifyAlert(alert);
+          if (sent) results.notificationsSent++;
+          await setAlertCooldown('DB_DOWN');
+        }
       }
     }
   }
@@ -359,7 +593,6 @@ export async function runAllChecks() {
   }
 
   // Store metrics in Sorted Sets for historical trend queries
-  const metricsTimestamp = Date.now();
   for (const result of [vercelResult, netlifyResult]) {
     await addMetricsEntry(result.platform, {
       latencyMs: result.latencyMs,

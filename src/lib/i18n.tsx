@@ -74,6 +74,8 @@ const translations = {
     'alerts.database': '数据库',
     'alerts.schema': 'Schema',
     'alerts.resolved': '已解决',
+    'alerts.resolveAll': '全部忽略',
+    'alerts.dismiss': '忽略此告警',
     'alerts.copy': '复制',
     'alerts.copied': '已复制！',
 
@@ -161,6 +163,8 @@ const translations = {
     'alerts.database': 'Database',
     'alerts.schema': 'Schema',
     'alerts.resolved': 'Resolved',
+    'alerts.resolveAll': 'Resolve All',
+    'alerts.dismiss': 'Dismiss',
     'alerts.copy': 'Copy',
     'alerts.copied': 'Copied!',
 

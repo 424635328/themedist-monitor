@@ -118,25 +118,37 @@ function parseAlerts(raw: unknown): SystemAlert[] {
 
 export async function getSystemAlerts(): Promise<SystemAlert[]> {
   if (isKvConfigured()) {
-    // Use string-based JSON storage (kvGet/kvSet work reliably in Vercel bundled
-    // context, unlike kvLrange which has known issues with @upstash/redis v1.38)
-    const alerts = parseAlerts(await kvGet<unknown>(KV_STR_ALERTS, null));
-    if (alerts.length > 0) return alerts;
+    // Read from BOTH storage backends and merge (dedup by id, string takes priority).
+    // Old alerts may only exist in list storage while new ones are in string storage,
+    // so we must always check both to avoid "ghost alerts" that can't be resolved.
+    const strAlerts = parseAlerts(await kvGet<unknown>(KV_STR_ALERTS, null));
+    const strMap = new Map(strAlerts.map((a) => [a.id, a]));
 
-    // Fallback: try list-based storage (legacy data), migrate to string store
     const items = await kvLrange(KV_LIST_ALERTS, 0, 200);
-    if (items.length > 0) {
-      const legacy: SystemAlert[] = [];
-      for (const item of items) {
-        try { legacy.push((typeof item === 'string' ? JSON.parse(item) : item) as SystemAlert); } catch {}
-      }
-      // Migrate to string-based storage so future reads avoid lrange
-      if (legacy.length > 0) {
-        await kvSet(KV_STR_ALERTS, JSON.stringify(legacy)).catch(() => {});
-      }
-      return legacy;
+    const listAlerts: SystemAlert[] = [];
+    for (const item of items) {
+      try { listAlerts.push((typeof item === 'string' ? JSON.parse(item) : item) as SystemAlert); } catch {}
     }
-    return [];
+
+    // Merge: add list-only alerts that aren't already in string storage
+    for (const a of listAlerts) {
+      if (!strMap.has(a.id)) {
+        strMap.set(a.id, a);
+      }
+    }
+
+    const merged = Array.from(strMap.values());
+    // Sort by timestamp descending
+    merged.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    // Write back merged result to string storage for consistency
+    const mergedJson = JSON.stringify(merged);
+    const oldJson = JSON.stringify(strAlerts);
+    if (mergedJson !== oldJson && listAlerts.length > 0) {
+      await kvSet(KV_STR_ALERTS, mergedJson).catch(() => {});
+    }
+
+    return merged;
   }
   return readJSON<SystemAlert[]>(ALERTS_FILE, []);
 }
@@ -161,11 +173,8 @@ export async function addSystemAlert(alert: SystemAlert) {
 
 export async function resolveAlert(alertId: string) {
   if (isKvConfigured()) {
-    let alerts = parseAlerts(await kvGet<unknown>(KV_STR_ALERTS, null));
-    // If store:alerts is empty, migrate from list first
-    if (alerts.length === 0) {
-      alerts = await getSystemAlerts(); // triggers migration
-    }
+    // Always use the merged view (string + list) from getSystemAlerts
+    const alerts = await getSystemAlerts();
     let resolved = false;
     for (const a of alerts) {
       if (a.id === alertId) { a.resolved = true; resolved = true; }

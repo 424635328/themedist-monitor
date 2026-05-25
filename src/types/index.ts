@@ -30,7 +30,7 @@ export interface SystemAlert {
   id: string;
   timestamp: string;
   type: 'OUTAGE' | 'SECURITY_BREACH' | 'DB_DOWN' | 'SCHEMA_MISMATCH';
-  platform: 'vercel' | 'netlify' | 'both' | 'system';
+  platform: 'vercel' | 'netlify' | 'both' | 'system' | 'community';
   message: string;
   details: string;
   resolved: boolean;
