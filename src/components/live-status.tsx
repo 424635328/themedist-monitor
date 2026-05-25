@@ -14,6 +14,8 @@ export default function LiveStatus() {
   const [vercel, setVercel] = useState<StatusInfo>({ status: 'checking', latencyMs: null });
   const [netlify, setNetlify] = useState<StatusInfo>({ status: 'checking', latencyMs: null });
   const [db, setDb] = useState<string>('checking');
+  const [dbPending, setDbPending] = useState<number | null>(null);
+  const [dbApproved, setDbApproved] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [dataTimestamp, setDataTimestamp] = useState<string | null>(null);
 
@@ -25,6 +27,8 @@ export default function LiveStatus() {
       setVercel(data.status.vercel);
       setNetlify(data.status.netlify);
       setDb(data.status.db);
+      setDbPending(data.status.dbPending ?? null);
+      setDbApproved(data.status.dbApproved ?? null);
       setDataTimestamp(data.timestamp);
     } catch {
       setVercel({ status: 'error', latencyMs: null });
@@ -162,7 +166,11 @@ export default function LiveStatus() {
               <span className={`status-dot ${statusDot(db) || ''}`} />
               <span className="text-sm font-semibold text-[var(--color-text,#fff)]">{dbLabel(db)}</span>
             </div>
-            <div className="text-[11px] text-zinc-500 mt-0.5">{t('liveStatus.redis')}</div>
+            <div className="text-[11px] text-zinc-500 mt-0.5">
+              {dbPending !== null && dbApproved !== null
+                ? `审核: ${dbPending} 待审 / ${dbApproved} 已批准`
+                : t('liveStatus.redis')}
+            </div>
           </div>
         </div>
       </div>

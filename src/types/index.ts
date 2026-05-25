@@ -23,6 +23,8 @@ export interface ThemeSnapshot {
   validationErrors?: string[];
   securityStatus: 'safe' | 'warning' | 'unsafe';
   flaggedReasons?: string[];
+  dailyIsCommunity?: boolean;
+  apiVersion?: string;
   rawData?: Record<string, unknown>;
 }
 
@@ -39,15 +41,43 @@ export interface SystemAlert {
 export interface TodayJsonResponse {
   apiVersion?: string;
   date?: string;
+  generatedAt?: string;
   preset?: string;
   presetName?: string;
   author?: string;
   available?: number;
+  dailyIsCommunity?: boolean;
   cssVars?: Record<string, string>;
   customCss?: string;
   extensions?: Array<Record<string, unknown>>;
+  logoText?: string;
+  logoColors?: string[];
   directory?: Array<Record<string, unknown>>;
   [key: string]: unknown;
+}
+
+export interface IndexDataResponse {
+  apiVersion?: string;
+  pool?: string[];
+  poolLength?: number;
+  totalThemes?: number;
+  gregorianHolidays?: Record<string, string>;
+  lunarHolidays?: Record<string, string>;
+  directory?: Array<Record<string, unknown>>;
+}
+
+export interface TrendingEntry {
+  preset: string;
+  likes: number;
+  usage: number;
+  hotness: number;
+}
+
+export interface AdminHealthResponse {
+  redis?: string;
+  pending?: number;
+  approved?: number;
+  apiVersion?: string;
 }
 
 export interface ProbeResult {

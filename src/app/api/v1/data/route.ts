@@ -46,14 +46,16 @@ export async function GET() {
     );
   }
 
-  // DB health — read from status hash (same source as /api/v1/status) to avoid
-  // inconsistency between hash:status db field and list:alerts unresolved items.
+  // DB health — read from status hash (same source as /api/v1/status)
   const statusHash = await getStatusHash();
   const dbStatus: string = statusHash?.['db:status'] ?? (
     hasAnyData
       ? (!alerts.some((a) => a.type === 'DB_DOWN' && !a.resolved) ? 'healthy' : 'degraded')
       : 'no_data'
   );
+  const dbRedis: string = statusHash?.['db:redis'] ?? 'unknown';
+  const dbPending: number | null = statusHash?.['db:pending'] ? parseInt(statusHash['db:pending'], 10) : null;
+  const dbApproved: number | null = statusHash?.['db:approved'] ? parseInt(statusHash['db:approved'], 10) : null;
 
   const unresolvedAlerts = alerts.filter((a) => !a.resolved);
   const recentAlerts = alerts.slice(0, 20);
@@ -85,6 +87,9 @@ export async function GET() {
       vercel: { status: getPlatformStatus(vercelLatest), latencyMs: vercelLatest?.latencyMs ?? null },
       netlify: { status: getPlatformStatus(netlifyLatest), latencyMs: netlifyLatest?.latencyMs ?? null },
       db: dbStatus,
+      dbRedis,
+      dbPending,
+      dbApproved,
     },
     metrics: {
       avgLatency24h: { vercel: avgLatency('vercel'), netlify: avgLatency('netlify') },

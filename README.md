@@ -16,7 +16,9 @@ ThemeDist 双平台监控面板 — 实时追踪 [ThemeDist](https://themedist.v
 - **延迟趋势图** — 24 小时延迟变化曲线，支持 Vercel / Netlify 双线对比，15 分钟粒度聚合
 - **SLA 可用率** — 7 天和 30 天滚动可用率统计，进度条颜色从红到绿连续渐变（HSL 色相映射），≥90% 时带外发光
 - **CDN 缓存追踪** — 监控 CDN HIT / MISS 比率（环形饼图），评估边缘缓存效率
-- **数据库健康** — 通过 DIY 社区主题 API 检测 Redis / Upstash 数据库降级
+- **数据库健康** — 通过 DIY 社区主题 API + `admin/health.json` 直连检测 Redis / Upstash 数据库状态。仪表盘展示待审/已批准社区主题数量
+- **构建索引监测** — 探测 `index-data.json` 校验主题池与节日映射完整性
+- **写路径监测** — 探测 `trending.json` 确认 Redis 写路径（Sorted Set 点赞/使用量）正常
 
 ### 安全审计
 
@@ -41,7 +43,7 @@ ThemeDist 双平台监控面板 — 实时追踪 [ThemeDist](https://themedist.v
 
 ### 仪表盘主题
 
-- **ThemeDist 主题自动应用** — 页面加载时自动请求 `/api/v1/today-safe`，将当日 34 个 CSS 变量 + 自定义动画 + 浮动装饰注入仪表盘本身
+- **ThemeDist 主题自动应用** — 页面加载时自动请求 `/api/v1/today-safe`，将当日 34+ 个 CSS 变量（含 RGB 通道变体） + 自定义动画 + 浮动装饰注入仪表盘本身
 - **一键降级** — 点击导航栏主题按钮可恢复原生深色主题，选择持久化到 localStorage
 - **容灾指南（可折叠）** — Vanilla JS + React Hook 集成代码示例可一键复制，SVG 状态徽章实时预览
 
@@ -110,7 +112,7 @@ src/
 │   ├── globals.css                 # 全局样式 + CSS 变量 + 动画
 │   ├── api-docs/page.tsx           # API 文档页面（内嵌 Markdown 内容，客户端 TOC 导航）
 │   ├── api-docs/toc-nav.tsx         # TOC 导航客户端组件（scrollIntoView 锚点跳转）
-│   ├── demo/page.tsx               # 主题实时预览实验室（147 套预设交互换肤）
+│   ├── demo/page.tsx               # 主题实时预览实验室（151 套预设交互换肤）
 │   └── api/
 │       └── v1/
 │           ├── data/route.ts           # 完整仪表盘数据聚合（含 24h 指标历史）
@@ -167,6 +169,9 @@ src/
 │  │  • themedist.vercel.app/api/v1/today.json  (主端点)             │   │
 │  │  • themedist.netlify.app/api/v1/today.json  (备用端点)          │   │
 │  │  • themedist.netlify.app/api/v1/diy/themes.json (社区主题)      │   │
+│  │  • themedist.netlify.app/api/v1/index-data.json (构建索引)      │   │
+│  │  • themedist.netlify.app/api/v1/trending.json (写路径)      │   │
+│  │  • themedist.netlify.app/api/v1/admin/health.json (Redis直连)   │   │
 │  └──────────────┬────────────────────────────────────────────┘   │
 │                 ↓                                                 │
 │  ┌───────────────────────────────────────────────────────────┐   │
@@ -222,7 +227,7 @@ src/
 - **告警**：字符串型 JSON 数组（`store:alerts`）+ 旧版 List（`list:alerts`），读取时自动合并去重
 - **性能日志**：Sorted Set（`zset:perf`），按时间戳排序，7 天 TTL
 - **主题快照**：Sorted Set（`zset:theme`），按日期排序
-- **实时状态**：Hash（`hash:status`），字段级读写
+- **实时状态**：Hash（`hash:status`），字段级读写（含 `db:redis`、`db:pending`、`db:approved`、`db:trending`、`index:status`、`index:totalThemes`）
 - **指标历史**：Sorted Set（`metrics:vercel` / `metrics:netlify`），7 天 TTL
 - **社区扫描缓存**：String JSON（`cache:scan:community`），24h TTL 全量重扫
 
@@ -255,7 +260,7 @@ src/
 
 ### 主题轮换与检测时机
 
-1. 农历节日（20+ 个）→ 2. 公历节日 → 3. Crazy Thursday → 4. 社区投稿（约 30% 天数，每 3 天轮入一次）→ 5. 日常预设池（147 套）
+1. 农历节日（20+ 个）→ 2. 公历节日 → 3. Crazy Thursday → 4. 社区投稿（约 30% 天数，每 3 天轮入一次）→ 5. 日常预设池（151 套）
 
 当社区投稿主题被轮换为当日主题时，其自定义 CSS 和扩展 HTML 会通过 `today.json` 直接分发给所有消费者。监控系统在每次扫描时同步检查 `today.json`（激活主题）和 DIY 端点（全部社区投稿），确保尚未激活的恶意主题也能被提前发现。
 

@@ -27,7 +27,7 @@ const ALERT_PATTERN = /alert\s*\(/i;
 const LOW_RISK_FIELDS = new Set([
   'name', 'title', 'author', 'description', 'label',
   'presetName', 'preset', 'bio', 'location', 'company',
-  'date', 'version', 'type', 'category', 'tags',
+  'date', 'version', 'type', 'category', 'tags', 'logoText',
 ]);
 
 function getLeafField(path: string): string {

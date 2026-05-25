@@ -1,4 +1,4 @@
-import type { PerformanceLog, ThemeSnapshot, SystemAlert, TodayJsonResponse } from '@/types';
+import type { PerformanceLog, ThemeSnapshot, SystemAlert, TodayJsonResponse, IndexDataResponse, TrendingEntry, AdminHealthResponse } from '@/types';
 import { validateTodayJson } from './validator';
 import { scanExtended, scanThemeEntry } from './security';
 import { addPerformanceLog, addThemeSnapshot, addSystemAlert, addMetricsEntry } from './store';
@@ -29,6 +29,9 @@ const ENDPOINTS = {
   vercel: 'https://themedist.vercel.app/api/v1/today.json',
   netlify: 'https://themedist.netlify.app/api/v1/today.json',
   diy: 'https://themedist.netlify.app/api/v1/diy/themes.json?sort=new&page=1&size=20',
+  indexData: 'https://themedist.netlify.app/api/v1/index-data.json',
+  trending: 'https://themedist.netlify.app/api/v1/trending.json',
+  adminHealth: 'https://themedist.netlify.app/api/v1/admin/health.json',
 };
 
 interface FetchResult {
@@ -105,6 +108,26 @@ async function checkDiyEndpoint(): Promise<DiyFetchResult> {
   }
 }
 
+interface HealthCheckResult { statusCode: number; latencyMs: number; data: unknown; error?: string; }
+
+async function checkSimpleEndpoint(url: string): Promise<HealthCheckResult> {
+  const start = performance.now();
+  try {
+    const response = await fetchWithProxy(`${url}?t=${Date.now()}`, {
+      headers: { 'User-Agent': 'ThemeDist-Monitor/1.0' },
+    });
+    const latencyMs = Math.round(performance.now() - start);
+    let data: unknown;
+    try { data = await response.json(); } catch { data = null; }
+    return { statusCode: response.status, latencyMs, data };
+  } catch (err) {
+    const latencyMs = Math.round(performance.now() - start);
+    const errorMsg = (err as Error).message;
+    console.error(`[monitor] simple fetch failed (${latencyMs}ms): ${errorMsg} | url=${url}`);
+    return { statusCode: 0, latencyMs, data: null, error: errorMsg };
+  }
+}
+
 function generateId(): string {
   return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
@@ -118,10 +141,13 @@ export async function runAllChecks() {
     notificationsSent: number;
   } = { performanceLogs: [], themeSnapshot: null, alerts: [], notificationsSent: 0 };
 
-  const [vercelResult, netlifyResult, diyResult] = await Promise.all([
+  const [vercelResult, netlifyResult, diyResult, indexResult, trendingResult, healthResult] = await Promise.all([
     checkEndpoint('vercel'),
     checkEndpoint('netlify'),
     checkDiyEndpoint(),
+    checkSimpleEndpoint(ENDPOINTS.indexData),
+    checkSimpleEndpoint(ENDPOINTS.trending),
+    checkSimpleEndpoint(ENDPOINTS.adminHealth),
   ]);
 
   // Store performance logs
@@ -230,6 +256,8 @@ export async function runAllChecks() {
       validationErrors: validation.valid ? undefined : validation.errors,
       securityStatus: securityCheck.isSafe ? 'safe' : 'unsafe',
       flaggedReasons: securityCheck.isSafe ? undefined : securityCheck.flaggedReasons,
+      dailyIsCommunity: themeData.dailyIsCommunity ?? false,
+      apiVersion: themeData.apiVersion,
       rawData: primaryData as Record<string, unknown>,
     };
     await addThemeSnapshot(snapshot);
@@ -524,8 +552,55 @@ export async function runAllChecks() {
     }
   }
 
-  // Auto-resolve old DB_DOWN alerts when DIY endpoint is healthy
-  if (!diyResult.isDegraded && !diyResult.error) {
+  // Process index-data.json probe
+  const indexData = (indexResult.data && typeof indexResult.data === 'object')
+    ? indexResult.data as IndexDataResponse : null;
+
+  // Process admin/health.json probe — direct Redis status
+  const healthData = (healthResult.data && typeof healthResult.data === 'object')
+    ? healthResult.data as AdminHealthResponse : null;
+  const redisConnected = healthData?.redis === 'connected';
+  const redisPending = healthData?.pending ?? null;
+  const redisApproved = healthData?.approved ?? null;
+
+  // Process trending.json probe — confirms Redis write path
+  let trendingOk = false;
+  if (trendingResult.data && typeof trendingResult.data === 'object') {
+    const t = trendingResult.data as { trending?: TrendingEntry[] };
+    trendingOk = Array.isArray(t.trending) && t.trending.length > 0;
+  }
+
+  // Redis health alert: admin/health says redis !== "connected"
+  if (healthResult.statusCode === 200 && healthData && !redisConnected) {
+    const count = await trackFailure('system', 'DB_DOWN');
+    if (count >= FAILURE_THRESHOLD) {
+      const existingAlerts = await getSystemAlerts();
+      const alreadyAlerted = existingAlerts.some(
+        (a) => !a.resolved && a.type === 'DB_DOWN'
+      );
+      if (!alreadyAlerted) {
+        const alert: SystemAlert = {
+          id: generateId(), timestamp: now, type: 'DB_DOWN',
+          platform: 'system',
+          message: `Redis disconnected (admin/health: "${healthData?.redis || 'N/A'}")`,
+          details: `Redis status: ${healthData?.redis || 'N/A'}, Pending: ${redisPending ?? 'N/A'}, Approved: ${redisApproved ?? 'N/A'} (failure #${count})`,
+          resolved: false,
+        };
+        await addSystemAlert(alert);
+        results.alerts.push(alert);
+        const cooling = await isAlertCooling('DB_DOWN');
+        if (!cooling) {
+          const sent = await notifyAlert(alert);
+          if (sent) results.notificationsSent++;
+          await setAlertCooldown('DB_DOWN');
+        }
+      }
+    }
+  }
+
+  // Auto-resolve DB_DOWN when all three Redis signals are healthy
+  const dbAllHealthy = !diyResult.isDegraded && !diyResult.error && redisConnected && trendingOk;
+  if (dbAllHealthy) {
     const existingAlerts = await getSystemAlerts();
     for (const alert of existingAlerts) {
       if (!alert.resolved && alert.type === 'DB_DOWN') {
@@ -533,63 +608,6 @@ export async function runAllChecks() {
       }
     }
     await resetFailure('system', 'DB_DOWN');
-  }
-
-  // Check DB health via DIY endpoint
-  if (diyResult.isDegraded && diyResult.statusCode === 200) {
-    const count = await trackFailure('system', 'DB_DOWN');
-    if (count >= FAILURE_THRESHOLD) {
-      const existingAlerts = await getSystemAlerts();
-      const alreadyAlerted = existingAlerts.some(
-        (a) => !a.resolved && a.type === 'DB_DOWN'
-      );
-
-      if (!alreadyAlerted) {
-        const alert: SystemAlert = {
-          id: generateId(), timestamp: now, type: 'DB_DOWN',
-          platform: 'system',
-          message: 'DIY themes endpoint returned empty results — possible Redis degradation',
-          details: `Status: ${diyResult.statusCode}, Latency: ${diyResult.latencyMs}ms (failure #${count})`,
-          resolved: false,
-        };
-        await addSystemAlert(alert);
-        results.alerts.push(alert);
-        const cooling = await isAlertCooling('DB_DOWN');
-        if (!cooling) {
-          const sent = await notifyAlert(alert);
-          if (sent) results.notificationsSent++;
-          await setAlertCooldown('DB_DOWN');
-        }
-      }
-    }
-  }
-
-  if (diyResult.error) {
-    const count = await trackFailure('system', 'DB_DOWN');
-    if (count >= FAILURE_THRESHOLD) {
-      const existingAlerts = await getSystemAlerts();
-      const alreadyAlerted = existingAlerts.some(
-        (a) => !a.resolved && a.type === 'DB_DOWN'
-      );
-
-      if (!alreadyAlerted) {
-        const alert: SystemAlert = {
-          id: generateId(), timestamp: now, type: 'DB_DOWN',
-          platform: 'system',
-          message: 'DIY themes endpoint unreachable',
-          details: diyResult.error + ` (failure #${count})`,
-          resolved: false,
-        };
-        await addSystemAlert(alert);
-        results.alerts.push(alert);
-        const cooling = await isAlertCooling('DB_DOWN');
-        if (!cooling) {
-          const sent = await notifyAlert(alert);
-          if (sent) results.notificationsSent++;
-          await setAlertCooldown('DB_DOWN');
-        }
-      }
-    }
   }
 
   // Write status to Hash for fast Edge reads
@@ -600,7 +618,14 @@ export async function runAllChecks() {
       hash[`${result.platform}:latency`] = String(result.latencyMs);
       hash[`${result.platform}:cache`] = result.cacheStatus;
     }
-    hash['db:status'] = diyResult.isDegraded || diyResult.error ? 'degraded' : 'healthy';
+    const dbHealthy = !diyResult.isDegraded && !diyResult.error && redisConnected;
+    hash['db:status'] = dbHealthy ? 'healthy' : 'degraded';
+    hash['db:redis'] = healthData?.redis || 'unknown';
+    if (redisPending !== null) hash['db:pending'] = String(redisPending);
+    if (redisApproved !== null) hash['db:approved'] = String(redisApproved);
+    hash['db:trending'] = trendingOk ? 'ok' : 'empty';
+    hash['index:status'] = indexResult.statusCode === 200 && indexData?.pool ? 'ok' : 'stale';
+    hash['index:totalThemes'] = indexData?.totalThemes ? String(indexData.totalThemes) : '0';
     hash['checkedAt'] = now;
     for (const [field, value] of Object.entries(hash)) {
       await kvHset('hash:status', field, value);

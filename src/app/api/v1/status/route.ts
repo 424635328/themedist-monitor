@@ -79,6 +79,11 @@ export async function GET() {
 
   const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
 
+  // Extract Redis health details from status hash
+  const dbRedis = statusHash?.['db:redis'] ?? 'unknown';
+  const dbPending = statusHash?.['db:pending'] ? parseInt(statusHash['db:pending'], 10) : null;
+  const dbApproved = statusHash?.['db:approved'] ? parseInt(statusHash['db:approved'], 10) : null;
+
   return NextResponse.json({
     overall,
     platforms: {
@@ -103,6 +108,11 @@ export async function GET() {
           isSafe: latestSnapshot.securityStatus === 'safe',
         }
       : null,
+    database: {
+      status: dbRedis,
+      pending: dbPending,
+      approved: dbApproved,
+    },
     checkedAt: vercelLatest?.timestamp ?? netlifyLatest?.timestamp ?? new Date().toISOString(),
     _edgeHash: statusHash,
   }, {
