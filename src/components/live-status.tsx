@@ -64,12 +64,35 @@ export default function LiveStatus() {
     return map[s] ?? t('liveStatus.unknown');
   }
 
+  function cardGlow(s: string): string {
+    if (s === 'online' || s === 'healthy') return 'shadow-[0_0_12px_rgba(34,197,94,0.08)] border-emerald-500/20';
+    if (s === 'slow') return 'shadow-[0_0_12px_rgba(249,115,22,0.08)] border-orange-500/20';
+    if (s === 'outage' || s === 'error' || s === 'degraded') return 'shadow-[0_0_12px_rgba(239,68,68,0.08)] border-red-500/20';
+    return '';
+  }
+
   function statusDot(s: string): string {
     if (s === 'online' || s === 'healthy') return 'online';
     if (s === 'slow') return 'slow';
     if (s === 'outage' || s === 'error' || s === 'degraded') return 'outage';
     if (s === 'no_data') return 'no_data';
     return '';
+  }
+
+  function latencyColor(ms: number | null): string {
+    if (ms === null) return 'text-zinc-500';
+    if (ms < 1000) return 'text-emerald-400';
+    if (ms < 2000) return 'text-yellow-400';
+    return 'text-orange-400';
+  }
+
+  function iconColor(s: string): string {
+    if (s === 'online') return 'text-emerald-400';
+    if (s === 'slow') return 'text-orange-400';
+    if (s === 'outage' || s === 'error') return 'text-red-400';
+    if (s === 'healthy') return 'text-emerald-400';
+    if (s === 'degraded') return 'text-orange-400';
+    return 'text-zinc-500';
   }
 
   function formatAgo(iso: string): string {
@@ -102,44 +125,44 @@ export default function LiveStatus() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-[#1a1a22]">
-          <Globe className="w-8 h-8 text-blue-400 shrink-0" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className={`flex items-center gap-3 p-3.5 rounded-lg bg-[#1a1a22] border border-transparent transition-shadow duration-500 ${cardGlow(vercel.status)}`}>
+          <Globe className={`w-7 h-7 ${iconColor(vercel.status)} shrink-0`} />
           <div className="min-w-0">
-            <div className="text-xs text-zinc-500">Vercel</div>
+            <div className="text-[11px] text-zinc-500 font-medium">Vercel</div>
             <div className="flex items-center gap-2 mt-0.5">
               <span className={`status-dot ${statusDot(vercel.status) || ''}`} />
-              <span className="text-sm font-medium text-white">{statusLabel(vercel.status)}</span>
+              <span className="text-sm font-semibold text-[var(--color-text,#fff)]">{statusLabel(vercel.status)}</span>
             </div>
             {vercel.latencyMs !== null && (
-              <div className="text-xs text-zinc-500 mt-0.5">{vercel.latencyMs}ms</div>
+              <div className={`text-[11px] mt-0.5 font-mono ${latencyColor(vercel.latencyMs)}`}>{vercel.latencyMs}ms</div>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-[#1a1a22]">
-          <Globe className="w-8 h-8 text-green-400 shrink-0" />
+        <div className={`flex items-center gap-3 p-3.5 rounded-lg bg-[#1a1a22] border border-transparent transition-shadow duration-500 ${cardGlow(netlify.status)}`}>
+          <Globe className={`w-7 h-7 ${iconColor(netlify.status)} shrink-0`} />
           <div className="min-w-0">
-            <div className="text-xs text-zinc-500">Netlify</div>
+            <div className="text-[11px] text-zinc-500 font-medium">Netlify</div>
             <div className="flex items-center gap-2 mt-0.5">
               <span className={`status-dot ${statusDot(netlify.status) || ''}`} />
-              <span className="text-sm font-medium text-white">{statusLabel(netlify.status)}</span>
+              <span className="text-sm font-semibold text-[var(--color-text,#fff)]">{statusLabel(netlify.status)}</span>
             </div>
             {netlify.latencyMs !== null && (
-              <div className="text-xs text-zinc-500 mt-0.5">{netlify.latencyMs}ms</div>
+              <div className={`text-[11px] mt-0.5 font-mono ${latencyColor(netlify.latencyMs)}`}>{netlify.latencyMs}ms</div>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-[#1a1a22]">
-          <Database className="w-8 h-8 text-purple-400 shrink-0" />
+        <div className={`flex items-center gap-3 p-3.5 rounded-lg bg-[#1a1a22] border border-transparent transition-shadow duration-500 ${cardGlow(db)}`}>
+          <Database className={`w-7 h-7 ${iconColor(db)} shrink-0`} />
           <div className="min-w-0">
-            <div className="text-xs text-zinc-500">{t('liveStatus.database')}</div>
+            <div className="text-[11px] text-zinc-500 font-medium">{t('liveStatus.database')}</div>
             <div className="flex items-center gap-2 mt-0.5">
               <span className={`status-dot ${statusDot(db) || ''}`} />
-              <span className="text-sm font-medium text-white">{dbLabel(db)}</span>
+              <span className="text-sm font-semibold text-[var(--color-text,#fff)]">{dbLabel(db)}</span>
             </div>
-            <div className="text-xs text-zinc-500 mt-0.5">{t('liveStatus.redis')}</div>
+            <div className="text-[11px] text-zinc-500 mt-0.5">{t('liveStatus.redis')}</div>
           </div>
         </div>
       </div>

@@ -19,26 +19,24 @@ function Header() {
     }`;
 
   return (
-    <header className="border-b border-[#252530] bg-[#0a0a0f]/80 backdrop-blur-sm sticky top-0 z-50">
+    <header className="border-b border-[var(--color-border,#252530)] bg-[var(--color-bg,#0a0a0f)]/80 backdrop-blur-sm sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white">TP</div>
-            <span className="font-semibold text-white text-sm">ThemeDist Pulse</span>
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white shadow-[0_0_12px_rgba(168,85,247,0.3)]">TP</div>
+            <span className="font-semibold text-[var(--color-text,#fff)] text-sm hidden sm:inline">ThemeDist Pulse</span>
           </Link>
         </div>
-        <div className="flex items-center gap-3 text-xs text-zinc-500">
-          <span className="hidden sm:inline">{t('nav.subtitle')}</span>
-          <span className="hidden sm:inline text-zinc-700">|</span>
-          <span className="hidden sm:inline">{t('nav.platforms')}</span>
-          <span className="hidden sm:inline text-zinc-700">|</span>
+        <div className="flex items-center gap-2 text-xs text-zinc-500">
+          <ThemeDistTheme />
+          <span className="hidden lg:inline text-zinc-600">|</span>
           <Link href="/demo" className={navLinkClass('/demo')}>
             <Monitor className="w-3 h-3" />
-            <span>Demo</span>
+            <span className="hidden sm:inline">Demo</span>
           </Link>
           <Link href="/api-docs" className={navLinkClass('/api-docs')}>
             <FileText className="w-3 h-3" />
-            <span>API Docs</span>
+            <span className="hidden sm:inline">Docs</span>
           </Link>
           <button
             onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}
@@ -70,7 +68,6 @@ function Footer() {
 export default function Providers({ children }: { children: ReactNode }) {
   return (
     <LanguageProvider>
-      <ThemeDistTheme />
       <Header />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {children}

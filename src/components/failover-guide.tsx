@@ -1,15 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, Copy, Check } from 'lucide-react';
+import { Shield, Copy, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 
 export default function FailoverGuide() {
   const { t } = useLanguage();
   const [copiedVanilla, setCopiedVanilla] = useState(false);
   const [copiedReact, setCopiedReact] = useState(false);
-  // 新增：用于跟踪各个状态徽章的复制状态
   const [copiedBadges, setCopiedBadges] = useState<Record<string, boolean>>({});
+  const [expanded, setExpanded] = useState(false);
 
   const vanillaCode = `// ThemeDist Failover — Vanilla JS
 async function loadTheme() {
@@ -149,12 +149,18 @@ export function useThemeDist() {
 
   return (
     <div className="card animate-fade-in">
-      <div className="flex items-center gap-2 mb-4">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 w-full text-left group"
+      >
+        <ChevronRight className={`w-4 h-4 text-zinc-500 transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`} />
         <Shield className="w-4 h-4 text-zinc-400" />
-        <h2 className="text-sm font-semibold text-white">{t('failover.title')}</h2>
-      </div>
+        <h2 className="text-sm font-semibold text-white flex-1">{t('failover.title')}</h2>
+        <span className="text-[10px] text-zinc-600">{t('failover.bestPractices')}</span>
+      </button>
 
-      <div className="space-y-4">
+      {expanded && (
+      <div className="space-y-4 mt-4">
         <div className="bg-[#1a1a22] rounded-lg p-4">
           <div className="text-xs font-medium text-zinc-300 mb-2">{t('failover.bestPractices')}</div>
           <ul className="space-y-2 text-xs text-zinc-500">
@@ -238,6 +244,7 @@ export function useThemeDist() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

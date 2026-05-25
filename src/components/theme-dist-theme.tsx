@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Palette, Undo2 } from 'lucide-react';
+import { Sparkles, Undo2, Loader2 } from 'lucide-react';
 
 const STORAGE_KEY = 'td-monitor-theme';
 const NATIVE_THEME: Record<string, string> = {
@@ -26,12 +26,14 @@ interface ThemeData {
 export default function ThemeDistTheme() {
   const [applied, setApplied] = useState(false);
   const [presetName, setPresetName] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [intentionalNative, setIntentionalNative] = useState(false);
   const styleRef = useRef<HTMLStyleElement | null>(null);
   const extRefs = useRef<HTMLElement[]>([]);
+  const retryCount = useRef(0);
 
   const cleanupTheme = useCallback(() => {
-    // Remove CSS variables
     const root = document.documentElement;
     const allKeys = new Set([
       ...Object.keys(NATIVE_THEME),
@@ -40,16 +42,13 @@ export default function ThemeDistTheme() {
     for (const key of allKeys) {
       root.style.removeProperty(key);
     }
-    // Restore native vars
     for (const [key, val] of Object.entries(NATIVE_THEME)) {
       root.style.setProperty(key, val);
     }
-    // Remove custom CSS style tag
     if (styleRef.current) {
       styleRef.current.remove();
       styleRef.current = null;
     }
-    // Remove floating elements
     for (const el of extRefs.current) {
       el.remove();
     }
@@ -59,12 +58,10 @@ export default function ThemeDistTheme() {
   const applyTheme = useCallback((data: ThemeData) => {
     const root = document.documentElement;
 
-    // Inject CSS variables
     for (const [key, val] of Object.entries(data.cssVars)) {
       root.style.setProperty(key, val as string);
     }
 
-    // Inject custom CSS (animations, theme-specific styles)
     if (data.customCss) {
       const style = document.createElement('style');
       style.setAttribute('data-td-theme', '1');
@@ -73,7 +70,6 @@ export default function ThemeDistTheme() {
       styleRef.current = style;
     }
 
-    // Render floating extensions
     const fragment = document.createDocumentFragment();
     if (Array.isArray(data.extensions)) {
       for (const ext of data.extensions) {
@@ -102,22 +98,38 @@ export default function ThemeDistTheme() {
 
     setPresetName(data.presetName || '');
     setApplied(true);
+    setLoading(false);
     localStorage.setItem(STORAGE_KEY, 'applied');
   }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(false);
     try {
       const res = await fetch('/api/today-safe');
-      if (!res.ok) throw new Error(String(res.status));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (!data.cssVars?.['--color-primary']) throw new Error('Invalid schema');
       applyTheme(data as ThemeData);
-    } catch {
-      console.log('[ThemeDist] Fallback to native theme');
-      localStorage.setItem(STORAGE_KEY, 'native');
-    } finally {
+      retryCount.current = 0;
+    } catch (err) {
+      const msg = (err as Error).message;
+      console.log(`[ThemeDist] Failed: ${msg}`);
+
+      // Auto-retry once after a short delay (proxy may be slow to start)
+      if (retryCount.current < 1) {
+        retryCount.current++;
+        setTimeout(() => load(), 3000);
+        return; // keep showing loading state
+      }
+
+      // Both attempts failed — show error
+      for (const [key, val] of Object.entries(NATIVE_THEME)) {
+        document.documentElement.style.setProperty(key, val);
+      }
       setLoading(false);
+      setApplied(false);
+      setError(true);
     }
   }, [applyTheme]);
 
@@ -126,45 +138,68 @@ export default function ThemeDistTheme() {
       cleanupTheme();
       setApplied(false);
       setPresetName('');
+      setError(false);
+      setIntentionalNative(true);
       localStorage.setItem(STORAGE_KEY, 'native');
     } else {
+      setIntentionalNative(false);
+      retryCount.current = 0;
       load();
     }
   }, [applied, cleanupTheme, load]);
 
-  // On mount: apply if user previously chose ThemeDist
+  // On mount: auto-apply unless user explicitly chose native
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === 'applied') {
-      load();
-    } else {
-      // Ensure native theme is set
+    if (saved === 'native') {
+      setIntentionalNative(true);
       for (const [key, val] of Object.entries(NATIVE_THEME)) {
         document.documentElement.style.setProperty(key, val);
       }
+      setLoading(false);
+    } else {
+      // Auto-apply on first visit or when previously applied
+      load();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (loading) {
+    return (
+      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-zinc-500 bg-zinc-800/50">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        <span className="hidden sm:inline">加载主题…</span>
+        <span className="sm:hidden">…</span>
+      </span>
+    );
+  }
+
   return (
     <button
-      onClick={toggle}
-      disabled={loading}
-      title={applied ? `当前: ${presetName} — 点击恢复原生主题` : '应用今日 ThemeDist 主题到仪表盘'}
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+      onClick={error ? load : toggle}
+      title={
+        error ? '点击重试加载 ThemeDist 主题'
+        : applied ? `当前主题: ${presetName} — 点击恢复原生`
+        : '点击加载 ThemeDist 主题'
+      }
+      className={`group flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-300 ${
         applied
-          ? 'bg-purple-500/15 text-purple-400 border border-purple-500/25 hover:bg-purple-500/25'
-          : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700'
-      } disabled:opacity-50`}
+          ? 'bg-gradient-to-r from-purple-500/20 to-indigo-500/20 text-purple-300 border border-purple-400/30 shadow-[0_0_12px_rgba(168,85,247,0.15)] hover:shadow-[0_0_20px_rgba(168,85,247,0.25)] hover:border-purple-400/50'
+          : error
+            ? 'bg-gradient-to-r from-amber-500/15 to-orange-500/15 text-amber-300 border border-amber-500/25 hover:border-amber-400/40 hover:shadow-[0_0_12px_rgba(245,158,11,0.15)]'
+            : 'bg-gradient-to-r from-zinc-700/50 to-zinc-600/50 text-zinc-300 border border-zinc-600/30 hover:border-zinc-500/50 hover:text-white hover:shadow-[0_0_12px_rgba(161,161,170,0.1)]'
+      }`}
     >
       {applied ? (
         <>
-          <Undo2 className="w-3 h-3" />
-          <span className="max-w-[120px] truncate">{presetName}</span>
+          <Sparkles className="w-3.5 h-3.5 text-purple-400 group-hover:text-purple-300 transition-colors" />
+          <span className="max-w-[130px] truncate">{presetName}</span>
+          <span className="w-px h-3 bg-purple-400/30" />
+          <Undo2 className="w-3 h-3 text-purple-400/70 group-hover:text-purple-300 transition-colors" />
         </>
       ) : (
         <>
-          <Palette className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-          应用主题
+          <Sparkles className={`w-3.5 h-3.5 ${error ? 'text-amber-400' : ''}`} />
+          <span>{error ? '点击重试' : '主题加载失败'}</span>
         </>
       )}
     </button>

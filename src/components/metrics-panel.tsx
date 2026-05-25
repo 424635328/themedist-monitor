@@ -125,42 +125,33 @@ export default function MetricsPanel() {
 
       {/* SLA Uptime */}
       <div className="mb-6">
-        <div className="text-xs text-zinc-500 mb-2">SLA 可用率</div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-[#1a1a22] rounded-lg p-3">
-            <div className="text-xs text-zinc-500 mb-1">Vercel</div>
-            <div className="flex items-end gap-3">
-              <div>
-                <div className="text-[10px] text-zinc-600">7 天</div>
-                <div className={`text-lg font-bold ${metrics.sla.vercel.d7 >= 99.9 ? 'text-green-400' : metrics.sla.vercel.d7 >= 99 ? 'text-yellow-400' : 'text-red-400'}`}>
-                  {metrics.sla.vercel.d7}%
+        <div className="text-xs text-zinc-500 mb-3 font-medium tracking-wide uppercase">SLA 可用率</div>
+        <div className="space-y-2.5">
+          {(['vercel', 'netlify'] as const).map((platform) => {
+            const d7 = metrics.sla[platform].d7;
+            const d30 = metrics.sla[platform].d30;
+            const barColor = (v: number) => v >= 99.9 ? 'bg-emerald-500' : v >= 99 ? 'bg-yellow-500' : 'bg-red-500';
+            const textColor = (v: number) => v >= 99.9 ? 'text-emerald-400' : v >= 99 ? 'text-yellow-400' : 'text-red-400';
+            return (
+              <div key={platform} className="bg-[#1a1a22] rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-zinc-300 capitalize">{platform}</span>
                 </div>
+                {[{ label: '7 天', v: d7 }, { label: '30 天', v: d30 }].map(({ label, v }) => (
+                  <div key={label} className="flex items-center gap-3 mb-1.5 last:mb-0">
+                    <span className="text-[10px] text-zinc-500 w-8 text-right">{label}</span>
+                    <div className="flex-1 h-2 bg-[#0d0d12] rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ${barColor(v)}`}
+                        style={{ width: `${Math.min(v, 100)}%` }}
+                      />
+                    </div>
+                    <span className={`text-xs font-bold font-mono w-14 ${textColor(v)}`}>{v}%</span>
+                  </div>
+                ))}
               </div>
-              <div>
-                <div className="text-[10px] text-zinc-600">30 天</div>
-                <div className={`text-lg font-bold ${metrics.sla.vercel.d30 >= 99.9 ? 'text-green-400' : metrics.sla.vercel.d30 >= 99 ? 'text-yellow-400' : 'text-red-400'}`}>
-                  {metrics.sla.vercel.d30}%
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="bg-[#1a1a22] rounded-lg p-3">
-            <div className="text-xs text-zinc-500 mb-1">Netlify</div>
-            <div className="flex items-end gap-3">
-              <div>
-                <div className="text-[10px] text-zinc-600">7 天</div>
-                <div className={`text-lg font-bold ${metrics.sla.netlify.d7 >= 99.9 ? 'text-green-400' : metrics.sla.netlify.d7 >= 99 ? 'text-yellow-400' : 'text-red-400'}`}>
-                  {metrics.sla.netlify.d7}%
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] text-zinc-600">30 天</div>
-                <div className={`text-lg font-bold ${metrics.sla.netlify.d30 >= 99.9 ? 'text-green-400' : metrics.sla.netlify.d30 >= 99 ? 'text-yellow-400' : 'text-red-400'}`}>
-                  {metrics.sla.netlify.d30}%
-                </div>
-              </div>
-            </div>
-          </div>
+            );
+          })}
         </div>
       </div>
 
