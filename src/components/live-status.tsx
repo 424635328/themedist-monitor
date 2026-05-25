@@ -20,7 +20,7 @@ export default function LiveStatus() {
   async function fetchStatus() {
     setLoading(true);
     try {
-      const res = await fetch('/api/data');
+      const res = await fetch('/api/v1/data');
       const data = await res.json();
       setVercel(data.status.vercel);
       setNetlify(data.status.netlify);

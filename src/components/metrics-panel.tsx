@@ -35,7 +35,7 @@ export default function MetricsPanel() {
   const [logs, setLogs] = useState<PerfLog[]>([]);
 
   useEffect(() => {
-    fetch('/api/data')
+    fetch('/api/v1/data')
       .then((r) => r.json())
       .then((data) => {
         setMetrics(data.metrics);

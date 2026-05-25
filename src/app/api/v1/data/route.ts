@@ -46,7 +46,7 @@ export async function GET() {
     );
   }
 
-  // DB health — read from status hash (same source as /api/status) to avoid
+  // DB health — read from status hash (same source as /api/v1/status) to avoid
   // inconsistency between hash:status db field and list:alerts unresolved items.
   const statusHash = await getStatusHash();
   const dbStatus: string = statusHash?.['db:status'] ?? (

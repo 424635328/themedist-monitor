@@ -10,8 +10,8 @@ export async function GET(request: Request) {
   const start = performance.now();
 
   const targets = [
-    { platform: 'vercel', url: 'https://themedist.vercel.app/api/today.json' },
-    { platform: 'netlify', url: 'https://themedist.netlify.app/api/today.json' },
+    { platform: 'vercel', url: 'https://themedist.vercel.app/api/v1/today.json' },
+    { platform: 'netlify', url: 'https://themedist.netlify.app/api/v1/today.json' },
   ];
 
   const results = await Promise.all(

@@ -21,7 +21,7 @@ export async function GET() {
 
   // Test urls: themedist + a known-good Chinese site + httpbin
   const testUrls = [
-    'https://themedist.vercel.app/api/today.json',
+    'https://themedist.vercel.app/api/v1/today.json',
     'https://www.baidu.com',
   ];
 

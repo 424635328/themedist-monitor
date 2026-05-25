@@ -117,7 +117,7 @@ const translations = {
 
     'failover.title': '容灾与集成指南',
     'failover.bestPractices': 'ThemeDist 消费者最佳实践',
-    'failover.tip1': '始终使用 /api/today-safe 代理端点——它在返回前会清洗 XSS。',
+    'failover.tip1': '始终使用 /api/v1/today-safe 代理端点——它在返回前会清洗 XSS。',
     'failover.tip2': '实现本地回退主题。如果请求失败或返回无效数据，优雅降级。',
     'failover.tip3': '测量主源延迟；如果超过 3 秒，自动切换到备用平台。',
     'failover.tip4': '在应用前验证 Schema——检查 cssVars["--color-primary"] 是否存在。',
@@ -242,7 +242,7 @@ const translations = {
 
     'failover.title': 'Failover & Integration Guide',
     'failover.bestPractices': 'Best Practices for ThemeDist Consumers',
-    'failover.tip1': 'Always use the /api/today-safe proxy endpoint — it sanitizes XSS before returning.',
+    'failover.tip1': 'Always use the /api/v1/today-safe proxy endpoint — it sanitizes XSS before returning.',
     'failover.tip2': 'Implement a local fallback theme. If the fetch fails or returns invalid data, degrade gracefully.',
     'failover.tip3': 'Measure primary source latency; if >3s, switch to the secondary platform automatically.',
     'failover.tip4': 'Validate the schema before applying — check for cssVars["--color-primary"] existence.',

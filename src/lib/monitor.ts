@@ -26,9 +26,9 @@ async function resetFailure(platform: string, alertType: string) {
 }
 
 const ENDPOINTS = {
-  vercel: 'https://themedist.vercel.app/api/today.json',
-  netlify: 'https://themedist.netlify.app/api/today.json',
-  diy: 'https://themedist.netlify.app/api/diy/themes.json?sort=new&page=1&size=20',
+  vercel: 'https://themedist.vercel.app/api/v1/today.json',
+  netlify: 'https://themedist.netlify.app/api/v1/today.json',
+  diy: 'https://themedist.netlify.app/api/v1/diy/themes.json?sort=new&page=1&size=20',
 };
 
 interface FetchResult {
@@ -261,7 +261,7 @@ export async function runAllChecks() {
           details: [
             detailStr,
             '—',
-            'Remediation: Check themedist /api/today.json response structure.',
+            'Remediation: Check themedist /api/v1/today.json response structure.',
             'Ensure all required fields (date, preset, presetName, cssVars) are present.',
           ].join('\n'),
           resolved: false,
@@ -497,7 +497,7 @@ export async function runAllChecks() {
             'Remediation:',
             '  1. Delete these themes via themedist admin or Redis (see IDs above).',
             '  2. Fix themedist submission sanitizer — these payloads bypassed documented rules.',
-            '  3. The /api/diy/submit.json endpoint should strip on* events, <script>,',
+            '  3. The /api/v1/diy/submit.json endpoint should strip on* events, <script>,',
             '     <iframe>, javascript:, expression(), @import, and url(http) from all fields.',
             '  4. Add JS function-call detection to author field validation (fetch/eval blocked).',
           ].join('\n'),

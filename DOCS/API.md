@@ -21,9 +21,9 @@ ThemeDist Monitor 是 [ThemeDist](https://themedist.vercel.app) 每日主题分�
 
 | 角色 | 用途 |
 |---|---|
-| ThemeDist 使用者 | 通过徽章或 `/api/status` 检查主题服务是否正常，决定是否使用当日主题 |
+| ThemeDist 使用者 | 通过徽章或 `/api/v1/status` 检查主题服务是否正常，决定是否使用当日主题 |
 | 主题作者 / 社区贡献者 | 通过安全审计接口校验自定义主题是否存在 XSS 风险 |
-| 下游网站开发者 | 使用 `/api/today-safe` 作为安全代理获取已清洗的主题数据；通过 RUM 遥测上报客户端性能 |
+| 下游网站开发者 | 使用 `/api/v1/today-safe` 作为安全代理获取已清洗的主题数据；通过 RUM 遥测上报客户端性能 |
 | 运维 / SRE | 监控双平台延迟趋势、CDN 命中率、SLA 可用率；诊断网络连通性 |
 
 ---
@@ -93,19 +93,19 @@ SVG 徽章 API 的核心设计意图是让 ThemeDist 的状态信息可以**零�
 
 | 端点 | CDN 缓存 | SWR | 说明 |
 |---|---|---|---|
-| `/api/badges/:type` | 300s | 600s | 徽章内容变化频率低 |
-| `/api/status` | 30s | 120s | 状态信息需较新鲜 |
-| `/api/data` | 30s | 60s | 仪表盘数据需近实时 |
-| `/api/security-status` | 300s | — | 安全审计每日更新一次 |
+| `/api/v1/badges/:type` | 300s | 600s | 徽章内容变化频率低 |
+| `/api/v1/status` | 30s | 120s | 状态信息需较新鲜 |
+| `/api/v1/data` | 30s | 60s | 仪表盘数据需近实时 |
+| `/api/v1/security-status` | 300s | — | 安全审计每日更新一次 |
 | 其他端点 | 无缓存 | — | 实时数据，不缓存 |
 
 ### 频率限制
 
 为防止滥用，以下端点实现了基于 KV 的冷却期限制：
 
-- `/api/monitor` — 30 秒内最多调用 1 次
-- `/api/diagnose` — 30 秒内最多调用 1 次
-- `/api/today-safe` — 恶意 IP 1 小时内违规 5 次将封禁 24 小时
+- `/api/v1/monitor` — 30 秒内最多调用 1 次
+- `/api/v1/diagnose` — 30 秒内最多调用 1 次
+- `/api/v1/today-safe` — 恶意 IP 1 小时内违规 5 次将封禁 24 小时
 
 触发限流时返回 `429 Too Many Requests`。
 
@@ -144,7 +144,7 @@ SVG 徽章 API 的核心设计意图是让 ThemeDist 的状态信息可以**零�
 
 ### 状态徽章
 
-#### GET /api/badges/:type
+#### GET /api/v1/badges/:type
 
 返回 SVG 状态徽章（shields.io 风格），可嵌入 README 文件、文档页面或第三方仪表盘。徽章内容根据最新的监控数据动态生成。
 
@@ -164,10 +164,10 @@ SVG 徽章 API 的核心设计意图是让 ThemeDist 的状态信息可以**零�
 
 | `:type` 值 | 徽章标题 | 数据来源 | 状态映射 |
 |---|---|---|---|
-| `vercel` | Vercel | `/api/status` → platforms.vercel.status | online=绿色, slow=黄色, outage=红色, unknown=灰色 |
-| `netlify` | Netlify | `/api/status` → platforms.netlify.status | 同上 |
-| `theme` | Theme Safety | `/api/status` → theme.isSafe | true=绿色, false=红色 |
-| `database` | Database | `/api/status` → theme 数据可用性 | healthy=绿色, 其他=红色 |
+| `vercel` | Vercel | `/api/v1/status` → platforms.vercel.status | online=绿色, slow=黄色, outage=红色, unknown=灰色 |
+| `netlify` | Netlify | `/api/v1/status` → platforms.netlify.status | 同上 |
+| `theme` | Theme Safety | `/api/v1/status` → theme.isSafe | true=绿色, false=红色 |
+| `database` | Database | `/api/v1/status` → theme 数据可用性 | healthy=绿色, 其他=红色 |
 | `uptime` | Uptime | SLA 统计（近 7 日） | 百分比数值 |
 
 **响应格式：**
@@ -193,44 +193,44 @@ SVG 徽章 API 的核心设计意图是让 ThemeDist 的状态信息可以**零�
 
 **实时效果预览：**
 
-![Vercel 状态](https://themedist-monitor.vercel.app/api/badges/vercel)
-![Netlify 状态](https://themedist-monitor.vercel.app/api/badges/netlify)
-![主题安全](https://themedist-monitor.vercel.app/api/badges/theme)
-![数据库](https://themedist-monitor.vercel.app/api/badges/database)
-![可用率](https://themedist-monitor.vercel.app/api/badges/uptime)
+![Vercel 状态](https://themedist-monitor.vercel.app/api/v1/badges/vercel)
+![Netlify 状态](https://themedist-monitor.vercel.app/api/v1/badges/netlify)
+![主题安全](https://themedist-monitor.vercel.app/api/v1/badges/theme)
+![数据库](https://themedist-monitor.vercel.app/api/v1/badges/database)
+![可用率](https://themedist-monitor.vercel.app/api/v1/badges/uptime)
 
 **使用示例：**
 
 Markdown（嵌入 README）：
 
 ```markdown
-![Vercel 状态](https://themedist-monitor.vercel.app/api/badges/vercel)
-![Netlify 状态](https://themedist-monitor.vercel.app/api/badges/netlify)
-![主题安全](https://themedist-monitor.vercel.app/api/badges/theme)
+![Vercel 状态](https://themedist-monitor.vercel.app/api/v1/badges/vercel)
+![Netlify 状态](https://themedist-monitor.vercel.app/api/v1/badges/netlify)
+![主题安全](https://themedist-monitor.vercel.app/api/v1/badges/theme)
 ```
 
 HTML（嵌入网页）：
 
 ```html
-<img src="https://themedist-monitor.vercel.app/api/badges/vercel" alt="Vercel Status" />
-<img src="https://themedist-monitor.vercel.app/api/badges/theme" alt="Theme Safety" />
+<img src="https://themedist-monitor.vercel.app/api/v1/badges/vercel" alt="Vercel Status" />
+<img src="https://themedist-monitor.vercel.app/api/v1/badges/theme" alt="Theme Safety" />
 ```
 
 curl 调试：
 
 ```bash
 # 获取 SVG 徽章
-curl -sS 'https://themedist-monitor.vercel.app/api/badges/vercel'
+curl -sS 'https://themedist-monitor.vercel.app/api/v1/badges/vercel'
 
 # 调试模式查看 JSON 元数据
-curl -sS 'https://themedist-monitor.vercel.app/api/badges/vercel?debug=1' | jq .
+curl -sS 'https://themedist-monitor.vercel.app/api/v1/badges/vercel?debug=1' | jq .
 ```
 
 ---
 
 ### 平台健康状态
 
-#### GET /api/status
+#### GET /api/v1/status
 
 获取所有监控平台的当前健康摘要。这是最轻量的状态查询端点——运行在 Vercel Edge Runtime 上，延迟极低（全球边缘响应通常在 50ms 以内），适合用作健康检查端点或监控告警的数据源。
 
@@ -285,14 +285,14 @@ curl -sS 'https://themedist-monitor.vercel.app/api/badges/vercel?debug=1' | jq .
 **curl 示例：**
 
 ```bash
-curl -sS 'https://themedist-monitor.vercel.app/api/status' | jq .
+curl -sS 'https://themedist-monitor.vercel.app/api/v1/status' | jq .
 ```
 
 **JavaScript 示例（浏览器）：**
 
 ```javascript
 async function checkHealth() {
-  const res = await fetch('https://themedist-monitor.vercel.app/api/status');
+  const res = await fetch('https://themedist-monitor.vercel.app/api/v1/status');
   const data = await res.json();
   console.log(`Overall: ${data.overall}`);
   console.log(`Vercel: ${data.platforms.vercel.status} (${data.platforms.vercel.latencyMs}ms)`);
@@ -305,9 +305,9 @@ async function checkHealth() {
 
 ### 仪表盘完整数据
 
-#### GET /api/data
+#### GET /api/v1/data
 
-获取仪表盘所需的完整数据：实时状态、24 小时性能指标、性能日志历史、主题快照、告警记录以及安全事件日志。此端点是 `/api/status` 的超集，适合需要展示图表或历史数据的场景。
+获取仪表盘所需的完整数据：实时状态、24 小时性能指标、性能日志历史、主题快照、告警记录以及安全事件日志。此端点是 `/api/v1/status` 的超集，适合需要展示图表或历史数据的场景。
 
 **响应格式：** `application/json`
 
@@ -329,7 +329,7 @@ async function checkHealth() {
       "id": "uuid",
       "timestamp": "2026-05-24T12:00:00.000Z",
       "platform": "vercel",
-      "endpoint": "https://themedist.vercel.app/api/today.json",
+      "endpoint": "https://themedist.vercel.app/api/v1/today.json",
       "statusCode": 200,
       "latencyMs": 245,
       "cacheStatus": "HIT",
@@ -365,7 +365,7 @@ async function checkHealth() {
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `status` | `object` | 当前平台实时状态（结构同 `/api/status`） |
+| `status` | `object` | 当前平台实时状态（结构同 `/api/v1/status`） |
 | `metrics.avgLatency24h` | `object` | 过去 24 小时 Vercel / Netlify 各平台平均延迟 |
 | `metrics.cdnHitRate` | `number` | 过去 24 小时 CDN 缓存命中率（百分比，0-100） |
 | `metrics.sla` | `object` | 7 天与 30 天 SLA 可用率（百分比） |
@@ -380,14 +380,14 @@ async function checkHealth() {
 **curl 示例：**
 
 ```bash
-curl -sS 'https://themedist-monitor.vercel.app/api/data' | jq '.metrics'
+curl -sS 'https://themedist-monitor.vercel.app/api/v1/data' | jq '.metrics'
 ```
 
 ---
 
 ### 触发监控检测
 
-#### GET /api/monitor
+#### GET /api/v1/monitor
 
 公开触发一次完整的监控检测流程，无需鉴权。完整流程包括：
 
@@ -414,7 +414,7 @@ curl -sS 'https://themedist-monitor.vercel.app/api/data' | jq '.metrics'
       "id": "839c12f6-...",
       "timestamp": "2026-05-24T06:51:01.354Z",
       "platform": "vercel",
-      "endpoint": "https://themedist.vercel.app/api/today.json",
+      "endpoint": "https://themedist.vercel.app/api/v1/today.json",
       "statusCode": 200,
       "latencyMs": 820,
       "cacheStatus": "MISS",
@@ -451,15 +451,15 @@ curl -sS 'https://themedist-monitor.vercel.app/api/data' | jq '.metrics'
 
 ```bash
 # 手动触发检测
-curl -sS 'https://themedist-monitor.vercel.app/api/monitor' | jq .
+curl -sS 'https://themedist-monitor.vercel.app/api/v1/monitor' | jq .
 
 # 仅查看是否触发告警
-curl -sS 'https://themedist-monitor.vercel.app/api/monitor' | jq '.alerts'
+curl -sS 'https://themedist-monitor.vercel.app/api/v1/monitor' | jq '.alerts'
 ```
 
 ---
 
-#### POST /api/monitor
+#### POST /api/v1/monitor
 
 与 GET 执行相同的检测流程，但需要鉴权。此端点专供 Vercel Cron Jobs 定时调度使用。
 
@@ -470,21 +470,21 @@ curl -sS 'https://themedist-monitor.vercel.app/api/monitor' | jq '.alerts'
 | `Authorization` | `Bearer <CRON_SECRET>` |
 | `Content-Type` | `application/json` |
 
-**响应格式：** 同 GET `/api/monitor`
+**响应格式：** 同 GET `/api/v1/monitor`
 
 **curl 示例：**
 
 ```bash
 curl -sS -X POST \
   -H 'Authorization: Bearer your-cron-secret' \
-  'https://themedist-monitor.vercel.app/api/monitor' | jq .
+  'https://themedist-monitor.vercel.app/api/v1/monitor' | jq .
 ```
 
 ---
 
 ### 数据管理
 
-#### DELETE /api/monitor
+#### DELETE /api/v1/monitor
 
 清除所有已存储的监控数据，包括性能日志、主题快照、告警记录、安全事件日志和状态哈希。需鉴权。
 
@@ -505,14 +505,14 @@ curl -sS -X POST \
 ```bash
 curl -sS -X DELETE \
   -H 'Authorization: Bearer your-cron-secret' \
-  'https://themedist-monitor.vercel.app/api/monitor'
+  'https://themedist-monitor.vercel.app/api/v1/monitor'
 ```
 
 ---
 
 ### 安全审计状态
 
-#### GET /api/security-status
+#### GET /api/v1/security-status
 
 获取最近一次主题安全审计的详细结果。适合主题作者或安全研究人员在发布主题后验证其安全性。
 
@@ -568,14 +568,14 @@ curl -sS -X DELETE \
 **curl 示例：**
 
 ```bash
-curl -sS 'https://themedist-monitor.vercel.app/api/security-status' | jq .
+curl -sS 'https://themedist-monitor.vercel.app/api/v1/security-status' | jq .
 ```
 
 ---
 
 ### 网络诊断
 
-#### GET /api/diagnose
+#### GET /api/v1/diagnose
 
 从服务器端探测与关键端点的网络连通性。此端点对于以下场景尤其有用：
 
@@ -597,13 +597,13 @@ curl -sS 'https://themedist-monitor.vercel.app/api/security-status' | jq .
   },
   "probes": [
     {
-      "url": "themedist.vercel.app/api/today.json",
+      "url": "themedist.vercel.app/api/v1/today.json",
       "ok": true,
       "status": 200,
       "ms": 245
     },
     {
-      "url": "themedist.netlify.app/api/today.json",
+      "url": "themedist.netlify.app/api/v1/today.json",
       "ok": true,
       "status": 200,
       "ms": 312
@@ -633,14 +633,14 @@ curl -sS 'https://themedist-monitor.vercel.app/api/security-status' | jq .
 **curl 示例：**
 
 ```bash
-curl -sS 'https://themedist-monitor.vercel.app/api/diagnose' | jq .
+curl -sS 'https://themedist-monitor.vercel.app/api/v1/diagnose' | jq .
 ```
 
 ---
 
 ### 安全主题代理
 
-#### GET /api/today-safe
+#### GET /api/v1/today-safe
 
 从 ThemeDist 代理获取最新的每日主题数据，并应用完整的安全清洗管线。此端点是下游主题消费者的**推荐接入点**——它返回的数据可以直接用于设置 CSS 变量，无需额外的客户端清洗。
 
@@ -694,7 +694,7 @@ curl -sS 'https://themedist-monitor.vercel.app/api/diagnose' | jq .
 ```javascript
 async function applyTheme() {
   try {
-    const res = await fetch('https://themedist-monitor.vercel.app/api/today-safe');
+    const res = await fetch('https://themedist-monitor.vercel.app/api/v1/today-safe');
     if (!res.ok) {
       console.error('无法获取安全主题数据');
       return;
@@ -715,16 +715,16 @@ async function applyTheme() {
 **curl 示例：**
 
 ```bash
-curl -sS 'https://themedist-monitor.vercel.app/api/today-safe' | jq '._meta'
+curl -sS 'https://themedist-monitor.vercel.app/api/v1/today-safe' | jq '._meta'
 ```
 
 ---
 
 ### 全球边缘探测
 
-#### GET /api/probe
+#### GET /api/v1/probe
 
-在 Vercel Edge Runtime 上运行的地理边缘探测。与 `/api/monitor` 不同，此端点在 Vercel 的边缘节点上执行，自动选择距离请求来源最近的区域。用于收集多区域的延迟数据，评估 ThemeDist 的全球访问质量。
+在 Vercel Edge Runtime 上运行的地理边缘探测。与 `/api/v1/monitor` 不同，此端点在 Vercel 的边缘节点上执行，自动选择距离请求来源最近的区域。用于收集多区域的延迟数据，评估 ThemeDist 的全球访问质量。
 
 **运行时环境：** Edge Runtime
 
@@ -742,7 +742,7 @@ curl -sS 'https://themedist-monitor.vercel.app/api/today-safe' | jq '._meta'
       "timestamp": "2026-05-24T12:00:00.000Z",
       "region": "hkg1",
       "platform": "vercel",
-      "endpoint": "https://themedist.vercel.app/api/today.json",
+      "endpoint": "https://themedist.vercel.app/api/v1/today.json",
       "statusCode": 200,
       "latencyMs": 245
     },
@@ -751,7 +751,7 @@ curl -sS 'https://themedist-monitor.vercel.app/api/today-safe' | jq '._meta'
       "timestamp": "2026-05-24T12:00:00.000Z",
       "region": "hkg1",
       "platform": "netlify",
-      "endpoint": "https://themedist.netlify.app/api/today.json",
+      "endpoint": "https://themedist.netlify.app/api/v1/today.json",
       "statusCode": 200,
       "latencyMs": 312
     }
@@ -764,14 +764,14 @@ curl -sS 'https://themedist-monitor.vercel.app/api/today-safe' | jq '._meta'
 **curl 示例：**
 
 ```bash
-curl -sS 'https://themedist-monitor.vercel.app/api/probe' | jq '.probe.region'
+curl -sS 'https://themedist-monitor.vercel.app/api/v1/probe' | jq '.probe.region'
 ```
 
 ---
 
 ### 遥测上报
 
-#### POST /api/telemetry
+#### POST /api/v1/telemetry
 
 接收真实用户监控（RUM）遥测数据。下游网站可在加载 ThemeDist 主题时上报客户端的实际加载耗时，帮助完善性能画像。
 
@@ -809,7 +809,7 @@ curl -sS 'https://themedist-monitor.vercel.app/api/probe' | jq '.probe.region'
 // 在页面加载时记录主题获取耗时并上报
 const start = performance.now();
 
-fetch('https://themedist-monitor.vercel.app/api/today-safe')
+fetch('https://themedist-monitor.vercel.app/api/v1/today-safe')
   .then(res => res.json())
   .then(theme => {
     const duration = Math.round(performance.now() - start);
@@ -819,7 +819,7 @@ fetch('https://themedist-monitor.vercel.app/api/today-safe')
     });
     // 上报遥测（fire-and-forget）
     navigator.sendBeacon(
-      'https://themedist-monitor.vercel.app/api/telemetry',
+      'https://themedist-monitor.vercel.app/api/v1/telemetry',
       JSON.stringify({ duration, platform: 'vercel' })
     );
   });
@@ -831,7 +831,7 @@ fetch('https://themedist-monitor.vercel.app/api/today-safe')
 curl -sS -X POST \
   -H 'Content-Type: application/json' \
   -d '{"duration": 245, "platform": "vercel"}' \
-  'https://themedist-monitor.vercel.app/api/telemetry'
+  'https://themedist-monitor.vercel.app/api/v1/telemetry'
 ```
 
 ---
@@ -845,22 +845,22 @@ curl -sS -X POST \
 ```markdown
 ## ThemeDist 服务状态
 
-![Vercel](https://themedist-monitor.vercel.app/api/badges/vercel)
-![Netlify](https://themedist-monitor.vercel.app/api/badges/netlify)
-![安全](https://themedist-monitor.vercel.app/api/badges/theme)
+![Vercel](https://themedist-monitor.vercel.app/api/v1/badges/vercel)
+![Netlify](https://themedist-monitor.vercel.app/api/v1/badges/netlify)
+![安全](https://themedist-monitor.vercel.app/api/v1/badges/theme)
 ```
 
 徽章图片会随监控数据自动更新，无需任何维护。
 
 ### 场景二：构建自定义状态面板
 
-结合 `/api/status` 和 `/api/data` 构建你自己的监控仪表盘：
+结合 `/api/v1/status` 和 `/api/v1/data` 构建你自己的监控仪表盘：
 
 ```javascript
 // 轻量轮询 — 适合状态指示灯
 setInterval(async () => {
   const { overall, platforms } = await fetch(
-    'https://themedist-monitor.vercel.app/api/status'
+    'https://themedist-monitor.vercel.app/api/v1/status'
   ).then(r => r.json());
 
   updateIndicator('vercel-light', platforms.vercel.status);
@@ -870,7 +870,7 @@ setInterval(async () => {
 // 完整数据 — 适合图表仪表盘
 async function loadDashboard() {
   const data = await fetch(
-    'https://themedist-monitor.vercel.app/api/data'
+    'https://themedist-monitor.vercel.app/api/v1/data'
   ).then(r => r.json());
 
   renderLatencyChart(data.metricsHistory.vercelLatency);
@@ -881,7 +881,7 @@ async function loadDashboard() {
 
 ### 场景三：在你的网站中使用安全主题
 
-下游网站消费 ThemeDist 主题的推荐方式——使用 `/api/today-safe` 作为安全代理：
+下游网站消费 ThemeDist 主题的推荐方式——使用 `/api/v1/today-safe` 作为安全代理：
 
 ```javascript
 // React Hook 示例
@@ -891,7 +891,7 @@ function useThemeDist() {
 
   useEffect(() => {
     const start = performance.now();
-    fetch('https://themedist-monitor.vercel.app/api/today-safe')
+    fetch('https://themedist-monitor.vercel.app/api/v1/today-safe')
       .then(res => res.json())
       .then(data => {
         setTheme(data);
@@ -902,7 +902,7 @@ function useThemeDist() {
         });
         // 上报遥测
         const duration = Math.round(performance.now() - start);
-        fetch('https://themedist-monitor.vercel.app/api/telemetry', {
+        fetch('https://themedist-monitor.vercel.app/api/v1/telemetry', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ duration, platform: 'vercel' }),
@@ -923,7 +923,7 @@ function useThemeDist() {
 #!/bin/bash
 # crontab: */5 * * * * /path/to/themedist-healthcheck.sh
 
-STATUS=$(curl -sS 'https://themedist-monitor.vercel.app/api/status')
+STATUS=$(curl -sS 'https://themedist-monitor.vercel.app/api/v1/status')
 OVERALL=$(echo "$STATUS" | jq -r '.overall')
 
 if [ "$OVERALL" = "down" ]; then
@@ -936,10 +936,10 @@ fi
 
 ### 场景五：网络故障排查
 
-当用户反馈主题加载异常时，使用 `/api/diagnose` 快速定位问题：
+当用户反馈主题加载异常时，使用 `/api/v1/diagnose` 快速定位问题：
 
 ```bash
-curl -sS 'https://themedist-monitor.vercel.app/api/diagnose' | jq .
+curl -sS 'https://themedist-monitor.vercel.app/api/v1/diagnose' | jq .
 ```
 
 根据输出判断：
@@ -971,7 +971,7 @@ curl -sS 'https://themedist-monitor.vercel.app/api/diagnose' | jq .
 
 | 运行时 | 使用的端点 | 特点 |
 |---|---|---|
-| **Edge Runtime** | `/api/status`, `/api/probe` | 全球边缘节点执行，延迟极低（<50ms），适合健康检查和高频轮询。限制：无文件系统访问，仅支持部分 Node.js API |
+| **Edge Runtime** | `/api/v1/status`, `/api/v1/probe` | 全球边缘节点执行，延迟极低（<50ms），适合健康检查和高频轮询。限制：无文件系统访问，仅支持部分 Node.js API |
 | **Node.js Runtime** | 其余全部端点 | 完整 Node.js 能力：文件系统、KV 客户端、Nodemailer。冷启动较长，但功能不受限 |
 
 ### 数据流架构
@@ -980,7 +980,7 @@ curl -sS 'https://themedist-monitor.vercel.app/api/diagnose' | jq .
 Vercel Cron (每日 0:00 UTC)
        │
        ▼
-POST /api/monitor (Bearer 鉴权)
+POST /api/v1/monitor (Bearer 鉴权)
        │
        ▼
   runAllChecks()
@@ -999,9 +999,9 @@ POST /api/monitor (Bearer 鉴权)
                            (Nodemailer + QQ SMTP)
 
 用户请求:
-  /api/status   ─► 读取 KV HASH        ─► 即时响应 (Edge, <50ms)
-  /api/data     ─► 读取 KV ZSET/LIST   ─► 聚合响应 (Node, ~100ms)
-  /api/badges   ─► 读取 KV HASH        ─► 渲染 SVG (Node, ~50ms)
+  /api/v1/status   ─► 读取 KV HASH        ─► 即时响应 (Edge, <50ms)
+  /api/v1/data     ─► 读取 KV ZSET/LIST   ─► 聚合响应 (Node, ~100ms)
+  /api/v1/badges   ─► 读取 KV HASH        ─► 渲染 SVG (Node, ~50ms)
 ```
 
 ### 持久化策略

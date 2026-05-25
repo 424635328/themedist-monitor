@@ -73,8 +73,8 @@ export default function ThemeDist() {
 
     // 2. 组装 API 请求地址
     const url = isToday
-      ? 'https://themedist.netlify.app/api/today.json'
-      : `https://themedist.netlify.app/api/theme/${preset}.json`;
+      ? 'https://themedist.netlify.app/api/v1/today.json'
+      : `https://themedist.netlify.app/api/v1/theme/${preset}.json`;
 
     try {
       const res = await fetch(url);
@@ -158,7 +158,7 @@ export default function ThemeDist() {
     if (directory.length === 0) {
       const fetchDirectoryOnly = async () => {
         try {
-          const res = await fetch('https://themedist.netlify.app/api/today.json');
+          const res = await fetch('https://themedist.netlify.app/api/v1/today.json');
           const data = await res.json();
           if (data.directory) {
             setDirectory(data.directory);

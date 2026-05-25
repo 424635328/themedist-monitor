@@ -106,7 +106,7 @@ export default function ThemeDistTheme() {
     setLoading(true);
     setError(false);
     try {
-      const res = await fetch('/api/today-safe');
+      const res = await fetch('/api/v1/today-safe');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (!data.cssVars?.['--color-primary']) throw new Error('Invalid schema');

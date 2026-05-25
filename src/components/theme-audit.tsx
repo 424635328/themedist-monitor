@@ -10,7 +10,7 @@ export default function ThemeAudit() {
   const [snapshot, setSnapshot] = useState<ThemeSnapshot | null>(null);
 
   useEffect(() => {
-    fetch('/api/data')
+    fetch('/api/v1/data')
       .then((r) => r.json())
       .then((data) => setSnapshot(data.latestSnapshot))
       .catch(() => {});

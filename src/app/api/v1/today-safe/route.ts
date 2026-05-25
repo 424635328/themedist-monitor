@@ -28,8 +28,8 @@ export async function GET(request: NextRequest) {
 
   for (const platform of ['vercel', 'netlify'] as const) {
     const urls = {
-      vercel: 'https://themedist.vercel.app/api/today.json',
-      netlify: 'https://themedist.netlify.app/api/today.json',
+      vercel: 'https://themedist.vercel.app/api/v1/today.json',
+      netlify: 'https://themedist.netlify.app/api/v1/today.json',
     };
 
     try {

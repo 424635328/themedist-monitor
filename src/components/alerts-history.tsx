@@ -198,7 +198,7 @@ export default function AlertsHistory() {
   const [selected, setSelected] = useState<SystemAlert | null>(null);
 
   useEffect(() => {
-    fetch('/api/data')
+    fetch('/api/v1/data')
       .then((r) => r.json())
       .then((data) => setAlerts(data.alerts?.recent || []))
       .catch(() => {});
@@ -209,7 +209,7 @@ export default function AlertsHistory() {
   const resolveOne = useCallback(async (alertId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     try {
-      const res = await fetch('/api/alerts/resolve', {
+      const res = await fetch('/api/v1/alerts/resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: alertId }),
@@ -221,7 +221,7 @@ export default function AlertsHistory() {
 
   const resolveAll = useCallback(async () => {
     try {
-      const res = await fetch('/api/alerts/resolve', {
+      const res = await fetch('/api/v1/alerts/resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),

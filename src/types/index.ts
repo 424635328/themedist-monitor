@@ -37,6 +37,7 @@ export interface SystemAlert {
 }
 
 export interface TodayJsonResponse {
+  apiVersion?: string;
   date?: string;
   preset?: string;
   presetName?: string;

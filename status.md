@@ -6,16 +6,16 @@
 
 | 端点 | 方法 | 状态 | 说明 |
 |---|---|---|---|
-| `/api/data` | GET | ✅ 正常 | 完整监控数据（状态、指标、告警、性能日志） |
-| `/api/status` | GET | ✅ 正常 | 轻量状态摘要（Edge Runtime） |
-| `/api/monitor` | GET/POST | ✅ 正常 | 触发一次监控检查 |
-| `/api/badges/[type]` | GET | ✅ 正常 | SVG 状态徽章（兼容 shields.io） |
-| `/api/telemetry` | POST | ✅ 正常 | 接收客户端性能遥测 |
-| `/api/probe` | GET | ✅ 正常 | 多区域端点探测 |
-| `/api/security-status` | GET | ✅ 正常 | 当前主题安全扫描结果 |
-| `/api/today-safe` | GET | ✅ 正常 | 经过清洗的 today.json 代理 |
-| `/api/diagnose` | GET | ✅ 正常 | 网络连通性诊断 |
-| `/api/debug-kv` | GET | ✅ 正常 | KV 存储调试信息 |
+| `/api/v1/data` | GET | ✅ 正常 | 完整监控数据（状态、指标、告警、性能日志） |
+| `/api/v1/status` | GET | ✅ 正常 | 轻量状态摘要（Edge Runtime） |
+| `/api/v1/monitor` | GET/POST | ✅ 正常 | 触发一次监控检查 |
+| `/api/v1/badges/[type]` | GET | ✅ 正常 | SVG 状态徽章（兼容 shields.io） |
+| `/api/v1/telemetry` | POST | ✅ 正常 | 接收客户端性能遥测 |
+| `/api/v1/probe` | GET | ✅ 正常 | 多区域端点探测 |
+| `/api/v1/security-status` | GET | ✅ 正常 | 当前主题安全扫描结果 |
+| `/api/v1/today-safe` | GET | ✅ 正常 | 经过清洗的 today.json 代理 |
+| `/api/v1/diagnose` | GET | ✅ 正常 | 网络连通性诊断 |
+| `/api/v1/debug-kv` | GET | ✅ 正常 | KV 存储调试信息 |
 | `/api-docs` | GET | ✅ 正常 | API 文档页面 |
 
 ## 平台状态
@@ -40,34 +40,34 @@
 
 ## 端点详情
 
-### `/api/data`（Node.js 运行时）
+### `/api/v1/data`（Node.js 运行时）
 返回完整监控数据，包括平台状态、性能指标、主题快照、系统告警和安全事件。缓存：30 秒 s-maxage。
 
-### `/api/status`（Edge 运行时）
+### `/api/v1/status`（Edge 运行时）
 供外部监控使用的轻量端点（如 UptimeRobot、Grafana）。返回整体健康度（healthy/degraded/down）、各平台状态及延迟、最新主题信息。
 
-### `/api/monitor`（Node.js 运行时）
+### `/api/v1/monitor`（Node.js 运行时）
 触发完整监控检查：抓取 themedist 端点、校验数据结构、执行安全扫描、检查数据库健康。有频率限制，支持互斥锁防止并发。
 
-### `/api/badges/[type]`（Node.js 运行时）
+### `/api/v1/badges/[type]`（Node.js 运行时）
 SVG 徽章端点。类型：`status`、`uptime`、`theme-count`、`security`。支持 `?debug=1` 输出 JSON。
 
-### `/api/telemetry`（Node.js 运行时）
+### `/api/v1/telemetry`（Node.js 运行时）
 接受 POST 请求，格式 `{ durationMs: number, platform?: string, region?: string }`。记录客户端性能遥测数据。
 
-### `/api/probe`（Node.js 运行时）
+### `/api/v1/probe`（Node.js 运行时）
 对 Vercel 和 Netlify 端点执行实时探测。返回每个端点的状态码、延迟和错误信息。
 
-### `/api/security-status`（Node.js 运行时）
+### `/api/v1/security-status`（Node.js 运行时）
 返回当前主题快照的安全扫描状态，包含 `securityStatus`、`flaggedReasons` 和 `schemaValid`。
 
-### `/api/today-safe`（Node.js 运行时）
+### `/api/v1/today-safe`（Node.js 运行时）
 代理 themedist 的 today.json 并经过内容清洗，移除潜在恶意内容，添加 `_meta.sanitized` 标记。
 
-### `/api/diagnose`（Node.js 运行时）
+### `/api/v1/diagnose`（Node.js 运行时）
 网络连通性诊断工具。同时探测 themedist 两个端点和已知可用主机（baidu.com），以区分网络问题与端点问题。
 
-### `/api/debug-kv`（Node.js 运行时）
+### `/api/v1/debug-kv`（Node.js 运行时）
 KV 存储调试端点。测试字符串读写、有序集合增删查，以及性能日志数量/样本。
 
 ## 最近变更

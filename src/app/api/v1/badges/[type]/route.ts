@@ -69,7 +69,7 @@ export async function GET(
     });
   }
 
-  // Match /api/data logic: scan last 4 logs only (same window)
+  // Match /api/v1/data logic: scan last 4 logs only (same window)
   const recentLogs = logs.slice(-4);
   const latestVercel = recentLogs.find((l: { platform: string }) => l.platform === 'vercel');
   const latestNetlify = recentLogs.find((l: { platform: string }) => l.platform === 'netlify');

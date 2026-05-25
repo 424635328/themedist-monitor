@@ -21,7 +21,7 @@ async function loadTheme() {
 
   try {
     const res = await fetch(
-      "https://themedist-monitor.vercel.app/api/today-safe"
+      "https://themedist-monitor.vercel.app/api/v1/today-safe"
     );
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
@@ -67,7 +67,7 @@ export function useThemeDist() {
     async function load() {
       try {
         const res = await fetch(
-          "https://themedist-monitor.vercel.app/api/today-safe"
+          "https://themedist-monitor.vercel.app/api/v1/today-safe"
         );
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
@@ -118,11 +118,11 @@ export function useThemeDist() {
 
   // 定义徽章数据源
   const badgeList = [
-    { id: 'vercel', label: 'Vercel Status', url: 'https://themedist-monitor.vercel.app/api/badges/vercel' },
-    { id: 'netlify', label: 'Netlify Status', url: 'https://themedist-monitor.vercel.app/api/badges/netlify' },
-    { id: 'theme', label: 'Theme Safety', url: 'https://themedist-monitor.vercel.app/api/badges/theme' },
-    { id: 'database', label: 'Database', url: 'https://themedist-monitor.vercel.app/api/badges/database' },
-    { id: 'uptime', label: 'Uptime', url: 'https://themedist-monitor.vercel.app/api/badges/uptime' },
+    { id: 'vercel', label: 'Vercel Status', url: 'https://themedist-monitor.vercel.app/api/v1/badges/vercel' },
+    { id: 'netlify', label: 'Netlify Status', url: 'https://themedist-monitor.vercel.app/api/v1/badges/netlify' },
+    { id: 'theme', label: 'Theme Safety', url: 'https://themedist-monitor.vercel.app/api/v1/badges/theme' },
+    { id: 'database', label: 'Database', url: 'https://themedist-monitor.vercel.app/api/v1/badges/database' },
+    { id: 'uptime', label: 'Uptime', url: 'https://themedist-monitor.vercel.app/api/v1/badges/uptime' },
   ];
 
   const copyToClipboard = async (text: string, setter: (v: boolean) => void) => {

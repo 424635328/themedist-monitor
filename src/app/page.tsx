@@ -26,7 +26,7 @@ export default function Home() {
     setMessage('');
     setIsAlert(false);
     try {
-      const res = await fetch('/api/monitor');
+      const res = await fetch('/api/v1/monitor');
       const data = await res.json();
       setLastRun(new Date().toLocaleString());
       if (data.alerts?.length > 0) {
