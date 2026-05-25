@@ -108,7 +108,8 @@ src/
 │   ├── page.tsx                    # 仪表盘 UI 入口
 │   ├── layout.tsx                  # 根布局
 │   ├── globals.css                 # 全局样式 + CSS 变量 + 动画
-│   ├── api-docs/page.tsx           # API 文档页面（服务端渲染 Markdown）
+│   ├── api-docs/page.tsx           # API 文档页面（内嵌 Markdown 内容，客户端 TOC 导航）
+│   ├── api-docs/toc-nav.tsx         # TOC 导航客户端组件（scrollIntoView 锚点跳转）
 │   ├── demo/page.tsx               # 主题实时预览实验室（147 套预设交互换肤）
 │   └── api/
 │       └── v1/
