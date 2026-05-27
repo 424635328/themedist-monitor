@@ -56,7 +56,7 @@ function Footer() {
   const { t } = useLanguage();
 
   return (
-    <footer className="border-t border-[#252530] py-6 mt-8">
+    <footer className="border-t border-[#252530] py-6 mt-8 relative z-[1]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-xs text-zinc-600">
         {t('footer.text')}{' '}
         <a href="https://themedist.vercel.app" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-zinc-300 underline underline-offset-2">ThemeDist</a>
@@ -69,7 +69,7 @@ export default function Providers({ children }: { children: ReactNode }) {
   return (
     <LanguageProvider>
       <Header />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 relative z-[1]">
         {children}
       </main>
       <Footer />
