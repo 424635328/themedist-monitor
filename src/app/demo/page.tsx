@@ -11,7 +11,16 @@ interface DirectoryItem {
 }
 
 interface Extension {
-  content: string;
+  type?: string;
+  html?: string;
+  char?: string;
+  top?: string;
+  left?: string;
+  right?: string;
+  bottom?: string;
+  fontSize?: string;
+  animation?: string;
+  opacity?: number;
 }
 
 interface ThemePayload {
@@ -216,11 +225,36 @@ export default function ThemeDist() {
         id="exts-container"
         dangerouslySetInnerHTML={{
           __html:
-            activeTheme?.extensions?.map((item) => item.content).join('') || '',
+            activeTheme?.extensions
+              ?.filter((ext) => ext.type === 'decorative' && ext.html)
+              .map((ext) => ext.html!)
+              .join('') || '',
         }}
       />
+      {/* 5. floating 类型扩展（浮动字符） */}
+      {activeTheme?.extensions
+        ?.filter((ext) => ext.type === 'floating' && ext.char)
+        .map((ext, i) => {
+          const cssParts: string[] = ['position:fixed', 'pointer-events:none', 'z-index:0'];
+          if (ext.top) cssParts.push(`top:${ext.top}`);
+          if (ext.left) cssParts.push(`left:${ext.left}`);
+          if (ext.right) cssParts.push(`right:${ext.right}`);
+          if (ext.bottom) cssParts.push(`bottom:${ext.bottom}`);
+          if (ext.fontSize) cssParts.push(`font-size:${ext.fontSize}`);
+          if (ext.animation) cssParts.push(`animation:${ext.animation}`);
+          const opacity = Number(ext.opacity);
+          if (!Number.isNaN(opacity)) cssParts.push(`opacity:${Math.max(0, Math.min(1, opacity))}`);
+          return (
+            <div
+              key={`floating-${i}`}
+              style={{ cssText: cssParts.join(';') } as React.CSSProperties}
+            >
+              {String(ext.char).slice(0, 4)}
+            </div>
+          );
+        })}
 
-      {/* 5. 页面主体容器 */}
+      {/* 6. 页面主体容器 */}
       <div className="container">
         {/* 顶部导航 */}
         <header>
