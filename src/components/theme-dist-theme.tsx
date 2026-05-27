@@ -73,7 +73,14 @@ export default function ThemeDistTheme() {
     const fragment = document.createDocumentFragment();
     if (Array.isArray(data.extensions)) {
       for (const ext of data.extensions) {
-        if (ext.type === 'floating' && typeof ext.char === 'string') {
+        if (ext.type === 'decorative' && typeof ext.html === 'string' && ext.html.trim()) {
+          const wrapper = document.createElement('div');
+          wrapper.setAttribute('data-td-ext', '1');
+          wrapper.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;overflow:visible;z-index:0;pointer-events:none;';
+          wrapper.innerHTML = ext.html;
+          fragment.appendChild(wrapper);
+          extRefs.current.push(wrapper);
+        } else if (ext.type === 'floating' && typeof ext.char === 'string') {
           const el = document.createElement('div');
           const cssParts: string[] = ['position:fixed', 'pointer-events:none', 'z-index:0'];
           if (typeof ext.top === 'string') cssParts.push(`top:${ext.top}`);
