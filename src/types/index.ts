@@ -12,6 +12,27 @@ export interface PerformanceLog {
   error?: string;
 }
 
+export interface LayerContext {
+  hasBackgroundOverlay: boolean;
+  hasInteractiveElements: boolean;
+  particleDensity: 'none' | 'low' | 'medium' | 'high';
+  safeWeatherZIndex: string;
+}
+
+export interface ClickEffectSpawn {
+  className: string;
+  duration: number;
+  count?: number;
+  angleSpread?: number;
+  offsetX?: number;
+  offsetY?: number;
+  style?: string;
+}
+
+export interface ClickEffect {
+  spawn: ClickEffectSpawn[];
+}
+
 export interface ThemeSnapshot {
   id: string;
   date: string;
@@ -25,6 +46,10 @@ export interface ThemeSnapshot {
   flaggedReasons?: string[];
   dailyIsCommunity?: boolean;
   apiVersion?: string;
+  logoText?: string | null;
+  logoColors?: string[] | null;
+  layerContext?: LayerContext;
+  clickEffect?: ClickEffect | null;
   rawData?: Record<string, unknown>;
 }
 
@@ -50,9 +75,19 @@ export interface TodayJsonResponse {
   cssVars?: Record<string, string>;
   customCss?: string;
   extensions?: Array<Record<string, unknown>>;
-  logoText?: string;
-  logoColors?: string[];
-  directory?: Array<Record<string, unknown>>;
+  clickEffect?: ClickEffect | null;
+  logoText?: string | null;
+  logoColors?: string[] | null;
+  directory?: Array<{
+    preset: string;
+    name: string;
+    primary: string;
+    accent: string;
+    logoText?: string | null;
+    community?: boolean;
+  }>;
+  layerContext?: LayerContext;
+  appliedOverrides?: boolean;
   [key: string]: unknown;
 }
 

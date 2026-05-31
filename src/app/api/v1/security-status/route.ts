@@ -27,6 +27,12 @@ export async function GET() {
     flaggedReasons: latest.flaggedReasons || [],
     schemaValid: latest.isValidSchema,
     themeName: latest.presetName,
+    preset: latest.preset,
+    dailyIsCommunity: latest.dailyIsCommunity ?? false,
+    apiVersion: latest.apiVersion ?? null,
+    layerContext: latest.layerContext ?? null,
+    hasClickEffect: latest.clickEffect != null && Array.isArray(latest.clickEffect?.spawn) && latest.clickEffect.spawn.length > 0,
+    clickEffectCount: latest.clickEffect?.spawn?.length ?? 0,
     checkedAt: latest.date,
     timestamp: new Date().toISOString(),
   }, { headers: corsHeaders() });

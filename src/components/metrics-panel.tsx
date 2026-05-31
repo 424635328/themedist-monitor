@@ -125,7 +125,7 @@ export default function MetricsPanel() {
 
       {/* SLA Uptime */}
       <div className="mb-6">
-        <div className="text-xs text-zinc-500 mb-3 font-medium tracking-wide uppercase">SLA 可用率</div>
+        <div className="text-xs text-zinc-500 mb-3 font-medium tracking-wide uppercase">{t('metrics.sla')}</div>
         <div className="space-y-2.5">
           {(['vercel', 'netlify'] as const).map((platform) => {
             const d7 = metrics.sla[platform].d7;
@@ -145,7 +145,7 @@ export default function MetricsPanel() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-medium text-zinc-300 capitalize">{platform}</span>
                 </div>
-                {[{ label: '7 天', v: d7 }, { label: '30 天', v: d30 }].map(({ label, v }) => {
+                {[{ label: t('metrics.sla7d'), v: d7 }, { label: t('metrics.sla30d'), v: d30 }].map(({ label, v }) => {
                   const h = slaHue(v);
                   const bar = slaBarBg(h, v);
                   return (

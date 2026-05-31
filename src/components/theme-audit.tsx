@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Shield, ShieldAlert, AlertTriangle, Palette, User, CheckCircle, CircleX } from 'lucide-react';
+import { Shield, ShieldAlert, AlertTriangle, Palette, User, CheckCircle, CircleX, Layers, MousePointerClick, Users, Code2 } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import type { ThemeSnapshot } from '@/types';
 
@@ -76,9 +76,48 @@ export default function ThemeAudit() {
             <div className="text-xs text-zinc-500 mb-1">{t('theme.themeCount')}</div>
             <div className="text-sm text-zinc-300">{snapshot.themeCount} {t('theme.available')}</div>
           </div>
+          {snapshot.dailyIsCommunity !== undefined && (
+            <div>
+              <div className="text-xs text-zinc-500 mb-1">{t('theme.source')}</div>
+              <div className="flex items-center gap-1.5 text-sm text-zinc-300">
+                <Users className="w-3 h-3" />
+                {snapshot.dailyIsCommunity ? t('theme.community') : t('theme.preset')}
+              </div>
+            </div>
+          )}
+          {snapshot.apiVersion && (
+            <div>
+              <div className="text-xs text-zinc-500 mb-1">{t('theme.apiVersion')}</div>
+              <div className="flex items-center gap-1.5 text-sm text-zinc-300 font-mono">
+                <Code2 className="w-3 h-3" /> {snapshot.apiVersion}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="text-xs text-zinc-500 mb-3">{t('theme.date')}{snapshot.date}</div>
+
+        {(snapshot.logoText || (snapshot.logoColors && snapshot.logoColors.length > 0)) && (
+          <div className="flex items-center gap-3 mb-3 p-2.5 bg-zinc-800/30 rounded-lg">
+            {snapshot.logoColors && snapshot.logoColors.length > 0 && (
+              <div className="flex items-center gap-1 shrink-0">
+                {snapshot.logoColors.slice(0, 4).map((color, i) => (
+                  <div
+                    key={i}
+                    className="w-5 h-5 rounded-md border border-zinc-700/50 shadow-sm"
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  />
+                ))}
+              </div>
+            )}
+            {snapshot.logoText && (
+              <span className="text-xs font-semibold text-zinc-300 tracking-wider truncate">
+                {snapshot.logoText}
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-3 mb-3">
           <div className="flex items-center gap-1.5 text-xs">
@@ -119,6 +158,55 @@ export default function ThemeAudit() {
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {snapshot.layerContext && (
+          <div className="mt-3 pt-3 border-t border-zinc-800/60">
+            <div className="flex items-center gap-1.5 text-xs text-zinc-500 mb-2">
+              <Layers className="w-3.5 h-3.5" />
+              {t('theme.layerContext')}
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <span className="text-zinc-500">{t('theme.particleDensity')}:</span>{' '}
+                <span className="text-zinc-300">{snapshot.layerContext.particleDensity}</span>
+              </div>
+              <div>
+                <span className="text-zinc-500">{t('theme.backgroundOverlay')}:</span>{' '}
+                <span className={snapshot.layerContext.hasBackgroundOverlay ? 'text-yellow-400' : 'text-zinc-400'}>
+                  {snapshot.layerContext.hasBackgroundOverlay ? t('theme.yes') : t('theme.no')}
+                </span>
+              </div>
+              <div>
+                <span className="text-zinc-500">{t('theme.interactive')}:</span>{' '}
+                <span className={snapshot.layerContext.hasInteractiveElements ? 'text-yellow-400' : 'text-zinc-400'}>
+                  {snapshot.layerContext.hasInteractiveElements ? t('theme.yes') : t('theme.no')}
+                </span>
+              </div>
+              <div>
+                <span className="text-zinc-500">{t('theme.weatherZIndex')}:</span>{' '}
+                <span className="text-zinc-300 font-mono">{snapshot.layerContext.safeWeatherZIndex}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {snapshot.clickEffect && snapshot.clickEffect.spawn && (
+          <div className="mt-3 pt-3 border-t border-zinc-800/60">
+            <div className="flex items-center gap-1.5 text-xs text-zinc-500 mb-2">
+              <MousePointerClick className="w-3.5 h-3.5" />
+              {t('theme.clickEffects')} ({snapshot.clickEffect.spawn.length})
+            </div>
+            <div className="space-y-1">
+              {snapshot.clickEffect.spawn.map((s, i) => (
+                <div key={i} className="text-xs font-mono text-zinc-400 bg-zinc-800/30 rounded px-2 py-1">
+                  .{s.className} — {s.duration}ms
+                  {s.count ? ` x${s.count}` : ''}
+                  {s.angleSpread ? ` ${s.angleSpread}°` : ''}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

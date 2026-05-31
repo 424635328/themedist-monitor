@@ -113,6 +113,17 @@ export async function GET() {
       pending: dbPending,
       approved: dbApproved,
     },
+    endpoints: {
+      events: statusHash?.['events:status'] ?? 'unknown',
+      tokens: statusHash?.['tokens:status'] ?? 'unknown',
+      weather: statusHash?.['weather:status'] ?? 'unknown',
+      todaySafe: statusHash?.['today-safe:status'] ?? 'unknown',
+      todayCss: statusHash?.['today-css:status'] ?? 'unknown',
+      favicon: statusHash?.['favicon:status'] ?? 'unknown',
+      fonts: statusHash?.['fonts:status'] ?? 'unknown',
+      patterns: statusHash?.['patterns:status'] ?? 'unknown',
+      colorSearch: statusHash?.['color-search:status'] ?? 'unknown',
+    },
     checkedAt: vercelLatest?.timestamp ?? netlifyLatest?.timestamp ?? new Date().toISOString(),
     _edgeHash: statusHash,
   }, {

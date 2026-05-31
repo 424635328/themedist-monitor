@@ -1,9 +1,9 @@
 import type { TodayJsonResponse } from '@/types';
 
-const REQUIRED_TOP_LEVEL = ['date', 'preset', 'presetName', 'cssVars'];
+const REQUIRED_TOP_LEVEL = ['date', 'preset', 'presetName', 'cssVars', 'layerContext', 'apiVersion'];
 const REQUIRED_CSS_VARS = ['--color-primary', '--color-bg'];
-const MIN_CSS_VARS = 28;
-const MAX_CSS_VARS = 50;
+const MIN_CSS_VARS = 48;
+const MAX_CSS_VARS = 60;
 
 export interface ValidationResult {
   valid: boolean;
@@ -44,6 +44,52 @@ export function validateTodayJson(data: unknown): ValidationResult {
 
   if (obj.available !== undefined && typeof obj.available !== 'number') {
     errors.push('"available" should be a number');
+  }
+
+  // Validate apiVersion
+  if (obj.apiVersion !== undefined && typeof obj.apiVersion !== 'string') {
+    errors.push('"apiVersion" should be a string');
+  }
+
+  // Validate customCss
+  if (obj.customCss !== undefined && obj.customCss !== null && typeof obj.customCss !== 'string') {
+    errors.push('"customCss" should be a string or null');
+  }
+
+  // Validate extensions
+  if (obj.extensions !== undefined && obj.extensions !== null && !Array.isArray(obj.extensions)) {
+    errors.push('"extensions" should be an array or null');
+  }
+
+  // Validate logoText
+  if (obj.logoText !== undefined && obj.logoText !== null && typeof obj.logoText !== 'string') {
+    errors.push('"logoText" should be a string or null');
+  }
+
+  // Validate logoColors
+  if (obj.logoColors !== undefined && obj.logoColors !== null && !Array.isArray(obj.logoColors)) {
+    errors.push('"logoColors" should be an array or null');
+  }
+
+  // Validate dailyIsCommunity
+  if (obj.dailyIsCommunity !== undefined && typeof obj.dailyIsCommunity !== 'boolean') {
+    errors.push('"dailyIsCommunity" should be a boolean');
+  }
+
+  // Validate layerContext
+  if (obj.layerContext !== undefined) {
+    if (typeof obj.layerContext !== 'object' || obj.layerContext === null) {
+      errors.push('"layerContext" should be an object');
+    }
+  }
+
+  // Validate clickEffect
+  if (obj.clickEffect !== null && obj.clickEffect !== undefined) {
+    if (typeof obj.clickEffect !== 'object') {
+      errors.push('"clickEffect" should be an object or null');
+    } else if (!Array.isArray(obj.clickEffect.spawn)) {
+      errors.push('"clickEffect.spawn" should be an array');
+    }
   }
 
   return { valid: errors.length === 0, errors };

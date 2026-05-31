@@ -88,11 +88,13 @@ export function scanExtended(data: Record<string, unknown>): ExtendedSecurityRes
   const cssAudit = auditCustomCss(data.customCss);
   const cssVarsAudit = auditCssVars(data.cssVars as Record<string, string> | undefined);
   const htmlAudit = sanitizeExtensions(data.extensions);
+  const clickEffectAudit = scanClickEffect(data.clickEffect as Record<string, unknown> | null | undefined);
 
   const allIssues = [
     ...cssAudit.issues,
     ...cssVarsAudit.issues,
     ...htmlAudit.flagged,
+    ...clickEffectAudit,
   ];
 
   // Only hard security issues make it unsafe; CSS warnings don't
@@ -108,6 +110,37 @@ export function scanExtended(data: Record<string, unknown>): ExtendedSecurityRes
     },
     htmlAudit,
   };
+}
+
+function scanClickEffect(clickEffect: Record<string, unknown> | null | undefined): string[] {
+  if (!clickEffect || typeof clickEffect !== 'object') return [];
+  const issues: string[] = [];
+  const spawn = clickEffect.spawn;
+  if (!Array.isArray(spawn)) return issues;
+
+  for (let i = 0; i < spawn.length; i++) {
+    const entry = spawn[i];
+    if (!entry || typeof entry !== 'object') continue;
+
+    // className: must match /^[a-zA-Z][\w-]*$/
+    if (typeof entry.className === 'string') {
+      if (!/^[a-zA-Z][\w-]*$/.test(entry.className)) {
+        issues.push(`clickEffect.spawn[${i}].className invalid: "${entry.className}"`);
+      }
+    }
+
+    // style field: scan for XSS patterns
+    if (typeof entry.style === 'string') {
+      for (const pattern of STRONG_PATTERNS) {
+        if (pattern.test(entry.style)) {
+          issues.push(`clickEffect.spawn[${i}].style matches "${pattern.source}": ${safeSnippet(entry.style)}`);
+          break;
+        }
+      }
+    }
+  }
+
+  return issues;
 }
 
 export function sanitizeValue(value: unknown): unknown {
@@ -151,6 +184,8 @@ interface ThemeEntry {
   customCss?: string;
   cssVars?: Record<string, string>;
   extensions?: Array<{ type?: string; html?: string; [k: string]: unknown }>;
+  clickEffect?: Record<string, unknown> | null;
+  tags?: string[];
 }
 
 interface ThemeScanResult {
@@ -253,6 +288,29 @@ export function scanThemeEntry(theme: ThemeEntry): ThemeScanResult | null {
         }
         if (!extFlagged && ALERT_PATTERN.test(html)) {
           reasons.push(`extensions[${i}].html matches "alert(": ${safeSnippet(html)}`);
+        }
+      }
+    }
+  }
+
+  // Scan clickEffect — className validation and style field XSS
+  if (theme.clickEffect && typeof theme.clickEffect === 'object') {
+    const spawn = theme.clickEffect.spawn;
+    if (Array.isArray(spawn)) {
+      for (let i = 0; i < spawn.length; i++) {
+        const entry = spawn[i];
+        if (!entry || typeof entry !== 'object') continue;
+        if (typeof entry.className === 'string' && !/^[a-zA-Z][\w-]*$/.test(entry.className)) {
+          reasons.push(`clickEffect.spawn[${i}].className invalid: "${entry.className}"`);
+          bypassed.push('clickEffect className validation bypassed');
+        }
+        if (typeof entry.style === 'string') {
+          for (const pattern of STRONG_PATTERNS) {
+            if (pattern.test(entry.style)) {
+              reasons.push(`clickEffect.spawn[${i}].style matches "${pattern.source.slice(0, 50)}": ${safeSnippet(entry.style)}`);
+              break;
+            }
+          }
         }
       }
     }

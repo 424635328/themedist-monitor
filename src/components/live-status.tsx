@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Activity, Globe, Database, RefreshCw } from 'lucide-react';
+import { Activity, Globe, Database, RefreshCw, Wifi, Palette, Cloud, ShieldCheck, FileCode2, Image, Type, Layers, Search } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 
 interface StatusInfo {
@@ -16,20 +16,22 @@ export default function LiveStatus() {
   const [db, setDb] = useState<string>('checking');
   const [dbPending, setDbPending] = useState<number | null>(null);
   const [dbApproved, setDbApproved] = useState<number | null>(null);
+  const [endpointStatuses, setEndpointStatuses] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [dataTimestamp, setDataTimestamp] = useState<string | null>(null);
 
   async function fetchStatus() {
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/data');
+      const res = await fetch('/api/v1/status');
       const data = await res.json();
-      setVercel(data.status.vercel);
-      setNetlify(data.status.netlify);
-      setDb(data.status.db);
-      setDbPending(data.status.dbPending ?? null);
-      setDbApproved(data.status.dbApproved ?? null);
-      setDataTimestamp(data.timestamp);
+      setVercel(data.platforms.vercel);
+      setNetlify(data.platforms.netlify);
+      setDb(data.database?.status ?? 'unknown');
+      setDbPending(data.database?.pending ?? null);
+      setDbApproved(data.database?.approved ?? null);
+      setEndpointStatuses(data.endpoints ?? {});
+      setDataTimestamp(data.checkedAt);
     } catch {
       setVercel({ status: 'error', latencyMs: null });
       setNetlify({ status: 'error', latencyMs: null });
@@ -109,6 +111,22 @@ export default function LiveStatus() {
     return `${Math.floor(hours / 24)}${t('liveStatus.dayAgo')}`;
   }
 
+  function endpointLabel(s: string): string {
+    return s === 'ok' ? t('liveStatus.online') : s === 'stale' ? t('liveStatus.slow') : t('liveStatus.unknown');
+  }
+
+  const ENDPOINT_META = [
+    { key: 'events', label: t('liveStatus.endpoint.events'), icon: Wifi },
+    { key: 'tokens', label: t('liveStatus.endpoint.tokens'), icon: Palette },
+    { key: 'weather', label: t('liveStatus.endpoint.weather'), icon: Cloud },
+    { key: 'todaySafe', label: t('liveStatus.endpoint.todaySafe'), icon: ShieldCheck },
+    { key: 'todayCss', label: t('liveStatus.endpoint.todayCss'), icon: FileCode2 },
+    { key: 'favicon', label: t('liveStatus.endpoint.favicon'), icon: Image },
+    { key: 'fonts', label: t('liveStatus.endpoint.fonts'), icon: Type },
+    { key: 'patterns', label: t('liveStatus.endpoint.patterns'), icon: Layers },
+    { key: 'colorSearch', label: t('liveStatus.endpoint.colorSearch'), icon: Search },
+  ];
+
   return (
     <div className="card animate-fade-in">
       <div className="flex items-center justify-between mb-4">
@@ -168,11 +186,29 @@ export default function LiveStatus() {
             </div>
             <div className="text-[11px] text-zinc-500 mt-0.5">
               {dbPending !== null && dbApproved !== null
-                ? `审核: ${dbPending} 待审 / ${dbApproved} 已批准`
+                ? `${t('liveStatus.review')}: ${dbPending} ${t('liveStatus.pending')} / ${dbApproved} ${t('liveStatus.approved')}`
                 : t('liveStatus.redis')}
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-3">
+        {ENDPOINT_META.map(({ key, label, icon: Icon }) => {
+          const s = endpointStatuses[key] ?? 'unknown';
+          return (
+            <div key={key} className={`flex items-center gap-2 p-2.5 rounded-lg bg-[#1a1a22] border border-transparent transition-shadow duration-500 ${cardGlow(s === 'ok' ? 'online' : s === 'stale' ? 'slow' : 'unknown')}`}>
+              <Icon className={`w-4 h-4 ${s === 'ok' ? 'text-emerald-400' : s === 'stale' ? 'text-orange-400' : 'text-zinc-500'} shrink-0`} />
+              <div className="min-w-0">
+                <div className="text-[10px] text-zinc-500 font-medium">{label}</div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className={`status-dot ${s === 'ok' ? 'online' : s === 'stale' ? 'outage' : ''}`} />
+                  <span className="text-xs font-medium text-zinc-300">{endpointLabel(s)}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

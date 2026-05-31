@@ -32,6 +32,15 @@ const ENDPOINTS = {
   indexData: 'https://themedist.netlify.app/api/v1/index-data.json',
   trending: 'https://themedist.netlify.app/api/v1/trending.json',
   adminHealth: 'https://themedist.netlify.app/api/v1/admin/health.json',
+  events: 'https://themedist.netlify.app/api/v1/events',
+  tokens: 'https://themedist.netlify.app/api/v1/tokens.json',
+  weatherTheme: 'https://themedist.netlify.app/api/v1/weather-theme.json',
+  todaySafe: 'https://themedist-monitor.vercel.app/api/v1/today-safe',
+  todayCss: 'https://themedist.netlify.app/api/v1/today.css',
+  favicon: 'https://themedist.netlify.app/api/v1/today/favicon.svg',
+  fonts: 'https://themedist.netlify.app/api/v1/today/fonts.css',
+  patterns: 'https://themedist.netlify.app/api/v1/today/pattern.css',
+  colorSearch: 'https://themedist.netlify.app/api/v1/search/color.json?hex=ff8fa3&limit=5',
 };
 
 interface FetchResult {
@@ -141,13 +150,22 @@ export async function runAllChecks() {
     notificationsSent: number;
   } = { performanceLogs: [], themeSnapshot: null, alerts: [], notificationsSent: 0 };
 
-  const [vercelResult, netlifyResult, diyResult, indexResult, trendingResult, healthResult] = await Promise.all([
+  const [vercelResult, netlifyResult, diyResult, indexResult, trendingResult, healthResult, eventsResult, tokensResult, weatherResult, todaySafeResult, todayCssResult, faviconResult, fontsResult, patternsResult, colorSearchResult] = await Promise.all([
     checkEndpoint('vercel'),
     checkEndpoint('netlify'),
     checkDiyEndpoint(),
     checkSimpleEndpoint(ENDPOINTS.indexData),
     checkSimpleEndpoint(ENDPOINTS.trending),
     checkSimpleEndpoint(ENDPOINTS.adminHealth),
+    checkSimpleEndpoint(ENDPOINTS.events),
+    checkSimpleEndpoint(ENDPOINTS.tokens),
+    checkSimpleEndpoint(ENDPOINTS.weatherTheme),
+    checkSimpleEndpoint(ENDPOINTS.todaySafe),
+    checkSimpleEndpoint(ENDPOINTS.todayCss),
+    checkSimpleEndpoint(ENDPOINTS.favicon),
+    checkSimpleEndpoint(ENDPOINTS.fonts),
+    checkSimpleEndpoint(ENDPOINTS.patterns),
+    checkSimpleEndpoint(ENDPOINTS.colorSearch),
   ]);
 
   // Store performance logs
@@ -258,6 +276,10 @@ export async function runAllChecks() {
       flaggedReasons: securityCheck.isSafe ? undefined : securityCheck.flaggedReasons,
       dailyIsCommunity: themeData.dailyIsCommunity ?? false,
       apiVersion: themeData.apiVersion,
+      logoText: themeData.logoText ?? null,
+      logoColors: themeData.logoColors ?? null,
+      layerContext: themeData.layerContext,
+      clickEffect: themeData.clickEffect ?? null,
       rawData: primaryData as Record<string, unknown>,
     };
     await addThemeSnapshot(snapshot);
@@ -431,6 +453,7 @@ export async function runAllChecks() {
         customCss: t.customCss as string,
         cssVars: t.cssVars as Record<string, string>,
         extensions: t.extensions as Array<{ type?: string; html?: string }>,
+        clickEffect: t.clickEffect as Record<string, unknown> | null | undefined,
         createdAt: t.createdAt as number,
       });
 
@@ -626,6 +649,15 @@ export async function runAllChecks() {
     hash['db:trending'] = trendingOk ? 'ok' : 'empty';
     hash['index:status'] = indexResult.statusCode === 200 && indexData?.pool ? 'ok' : 'stale';
     hash['index:totalThemes'] = indexData?.totalThemes ? String(indexData.totalThemes) : '0';
+    hash['events:status'] = eventsResult.statusCode === 200 ? 'ok' : 'stale';
+    hash['tokens:status'] = tokensResult.statusCode === 200 ? 'ok' : 'stale';
+    hash['weather:status'] = weatherResult.statusCode === 200 ? 'ok' : 'stale';
+    hash['today-safe:status'] = todaySafeResult.statusCode === 200 ? 'ok' : 'stale';
+    hash['today-css:status'] = todayCssResult.statusCode === 200 ? 'ok' : 'stale';
+    hash['favicon:status'] = faviconResult.statusCode === 200 ? 'ok' : 'stale';
+    hash['fonts:status'] = fontsResult.statusCode === 200 ? 'ok' : 'stale';
+    hash['patterns:status'] = patternsResult.statusCode === 200 ? 'ok' : 'stale';
+    hash['color-search:status'] = colorSearchResult.statusCode === 200 ? 'ok' : 'stale';
     hash['checkedAt'] = now;
     for (const [field, value] of Object.entries(hash)) {
       await kvHset('hash:status', field, value);

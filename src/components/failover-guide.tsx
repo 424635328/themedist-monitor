@@ -11,9 +11,9 @@ export default function FailoverGuide() {
   const [copiedBadges, setCopiedBadges] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState(false);
 
-  const vanillaCode = `// ThemeDist Failover — Vanilla JS
+  const vanillaCode = `// ThemeDist Failover — Vanilla JS (full integration)
 async function loadTheme() {
-  const FALLBACK_THEME = {
+  const FALLBACK = {
     "--color-primary": "#3b82f6",
     "--color-bg": "#ffffff",
     "--color-text": "#111827"
@@ -26,44 +26,73 @@ async function loadTheme() {
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
 
-    // Sanity check
-    if (!data.cssVars || !data.cssVars["--color-primary"]) {
+    if (!data.cssVars || !data.cssVars["--color-primary"])
       throw new Error("Invalid schema");
+
+    // 1. CSS vars → :root
+    const root = document.documentElement;
+    for (const [k, v] of Object.entries(data.cssVars))
+      root.style.setProperty(k, v);
+
+    // 2. customCss → <style> (safe: textContent)
+    if (data.customCss) {
+      let s = document.getElementById("td-css");
+      if (!s) { s = document.createElement("style");
+        s.id = "td-css"; document.head.appendChild(s); }
+      s.textContent = data.customCss;
     }
 
-    // Apply theme
-    const root = document.documentElement;
-    for (const [key, val] of Object.entries(data.cssVars)) {
-      root.style.setProperty(key, val);
-    }
-    console.log("[ThemeDist] Theme applied successfully");
+    // 3. extensions → safe DOM (floating + decorative)
+    if (data.extensions?.length) renderExts(data.extensions);
+
+    // 4. Cache
+    localStorage.setItem("td", JSON.stringify({
+      date: data.date, cssVars: data.cssVars,
+      customCss: data.customCss, exts: data.extensions
+    }));
   } catch (err) {
-    console.warn("[ThemeDist] Falling back to default theme:", err.message);
-    const root = document.documentElement;
-    for (const [key, val] of Object.entries(FALLBACK_THEME)) {
-      root.style.setProperty(key, val);
-    }
+    const fb = JSON.parse(localStorage.getItem("td") || "null");
+    if (fb) { /* apply cached theme */ }
   }
+}
+
+function renderExts(exts) {
+  const c = document.createElement("div");
+  c.id = "td-exts"; document.body.prepend(c);
+  exts.slice(0, 20).forEach(ext => {
+    if (ext.type === "floating" && ext.char) {
+      const el = document.createElement("div");
+      el.style.cssText = "position:fixed;pointer-events:none"
+        + (ext.top ? ";top:"+ext.top : "")
+        + (ext.left ? ";left:"+ext.left : "")
+        + (ext.fontSize ? ";font-size:"+ext.fontSize : "")
+        + (ext.animation ? ";animation:"+ext.animation : "")
+        + (ext.opacity != null ? ";opacity:"+ext.opacity : "");
+      el.textContent = String(ext.char).slice(0, 4);
+      c.appendChild(el);
+    } else if (ext.type === "decorative" && ext.html) {
+      const t = document.createElement("template");
+      t.innerHTML = ext.html;
+      const f = t.content.cloneNode(true);
+      f.querySelectorAll("*").forEach(n =>
+        [...n.attributes].forEach(a =>
+          /^on/i.test(a.name) && n.removeAttribute(a.name)));
+      c.appendChild(f);
+    }
+  });
 }
 
 loadTheme();`;
 
-  const reactCode = `// ThemeDist Failover — React Hook
+  const reactCode = `// ThemeDist Failover — React Hook (full integration)
 import { useState, useEffect } from "react";
 
-const FALLBACK_THEME = {
-  "--color-primary": "#3b82f6",
-  "--color-bg": "#ffffff",
-  "--color-text": "#111827"
-};
-
 export function useThemeDist() {
-  const [theme, setTheme] = useState(FALLBACK_THEME);
+  const [theme, setTheme] = useState(null);
   const [status, setStatus] = useState("loading");
 
   useEffect(() => {
     let cancelled = false;
-
     async function load() {
       try {
         const res = await fetch(
@@ -71,37 +100,43 @@ export function useThemeDist() {
         );
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
-
-        if (!data.cssVars || !data.cssVars["--color-primary"]) {
+        if (!data.cssVars?.["--color-primary"])
           throw new Error("Invalid schema");
-        }
-
         if (!cancelled) {
-          setTheme(data.cssVars);
+          setTheme(data);
           setStatus("safe");
         }
       } catch (err) {
+        const fb = JSON.parse(
+          localStorage.getItem("td") || "null"
+        );
         if (!cancelled) {
-          console.warn("[ThemeDist] Fallback triggered:", err.message);
+          setTheme(fb);
           setStatus("fallback");
         }
       }
     }
-
     load();
     return () => { cancelled = true; };
   }, []);
 
-  // Apply CSS vars
+  // Apply CSS vars + customCss
   useEffect(() => {
+    if (!theme?.cssVars) return;
     const root = document.documentElement;
-    for (const [key, val] of Object.entries(theme)) {
-      root.style.setProperty(key, val);
+    for (const [k, v] of Object.entries(theme.cssVars))
+      root.style.setProperty(k, v);
+
+    if (theme.customCss) {
+      let s = document.getElementById("td-css");
+      if (!s) { s = document.createElement("style");
+        s.id = "td-css"; document.head.appendChild(s); }
+      s.textContent = theme.customCss;
     }
+
     return () => {
-      for (const key of Object.keys(theme)) {
-        root.style.removeProperty(key);
-      }
+      for (const k of Object.keys(theme.cssVars))
+        root.style.removeProperty(k);
     };
   }, [theme]);
 
