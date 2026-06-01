@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh">
+    <html lang="zh" suppressHydrationWarning>
       <head>
         {/* Blocking script: apply cached theme CSS vars before first paint */}
         <script
