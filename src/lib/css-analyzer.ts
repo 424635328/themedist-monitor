@@ -6,12 +6,12 @@ export interface CssAuditResult {
 
 const URL_FN = /url\(\s*(['"]?)((?:https?|data):\/\/[^'")\s]+)\1\s*\)/gi;
 const IMPORT_RULE = /@import\s+(?:url\s*)?\(?\s*['"]([^'"]+)['"]/gi;
-const EXPRESSION = /expression\s*\(/gi;
-const BEHAVIOR = /behavior\s*:/gi;
-const MOZ_BINDING = /-moz-binding/gi;
-const JS_PROTO = /javascript\s*:/gi;
-const DATA_HTML = /data\s*:\s*text\/html/gi;
-const CSS_VAR_REF = /var\(\s*--[^)]+\)/g;
+const EXPRESSION = /expression\s*\(/i;
+const BEHAVIOR = /behavior\s*:/i;
+const MOZ_BINDING = /-moz-binding/i;
+const JS_PROTO = /javascript\s*:/i;
+const DATA_HTML = /data\s*:\s*text\/html/i;
+const CSS_VAR_REF = /var\(\s*--[^)]+\)/;
 
 const TRUSTED_CDNS = [
   'fonts.googleapis.com',
@@ -62,27 +62,22 @@ function parseAtRules(css: string, issues: string[], warnings: string[]) {
 }
 
 function parseProperties(css: string, issues: string[], warnings: string[]) {
-  EXPRESSION.lastIndex = 0;
   if (EXPRESSION.test(css)) {
     issues.push('CSS expression() detected — possible IE injection vector');
   }
 
-  BEHAVIOR.lastIndex = 0;
   if (BEHAVIOR.test(css)) {
     issues.push('CSS behavior property detected — possible binary behavior injection');
   }
 
-  MOZ_BINDING.lastIndex = 0;
   if (MOZ_BINDING.test(css)) {
     issues.push('-moz-binding detected — possible XBL injection');
   }
 
-  JS_PROTO.lastIndex = 0;
   if (JS_PROTO.test(css)) {
     issues.push('javascript: URI scheme detected in CSS value');
   }
 
-  DATA_HTML.lastIndex = 0;
   if (DATA_HTML.test(css)) {
     issues.push('data:text/html URI detected — potential HTML injection');
   }
@@ -139,7 +134,6 @@ export function auditCssVars(cssVars: Record<string, string> | undefined): CssAu
   for (const [key, value] of Object.entries(cssVars)) {
     if (typeof value !== 'string') continue;
 
-    JS_PROTO.lastIndex = 0;
     if (JS_PROTO.test(value)) {
       issues.push(`cssVar "${key}" contains javascript: URI`);
     }

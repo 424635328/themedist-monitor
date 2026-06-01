@@ -53,14 +53,6 @@ interface FetchResult {
   error?: string;
 }
 
-interface DiyFetchResult {
-  statusCode: number;
-  latencyMs: number;
-  data: unknown;
-  isDegraded: boolean;
-  error?: string;
-}
-
 async function checkEndpoint(platform: 'vercel' | 'netlify'): Promise<FetchResult> {
   const bustUrl = `${ENDPOINTS[platform]}?t=${Date.now()}`;
   const start = performance.now();
@@ -99,29 +91,15 @@ async function checkEndpoint(platform: 'vercel' | 'netlify'): Promise<FetchResul
   }
 }
 
-async function checkDiyEndpoint(): Promise<DiyFetchResult> {
-  const start = performance.now();
-  try {
-    const response = await fetchWithProxy(`${ENDPOINTS.diy}&t=${Date.now()}`, {
-      headers: { 'User-Agent': 'ThemeDist-Monitor/1.0' },
-      timeout: 10000,
-    });
-    const latencyMs = Math.round(performance.now() - start);
-    let data: unknown;
-    try { data = await response.json(); } catch { data = null; }
-    const isDegraded = response.status !== 200 || (Array.isArray(data) && data.length === 0) || data === null;
-    return { statusCode: response.status, latencyMs, data, isDegraded };
-  } catch (err) {
-    const latencyMs = Math.round(performance.now() - start);
-    const errorMsg = (err as Error).message;
-    console.error(`[monitor] diy fetch failed (${latencyMs}ms): ${errorMsg} | url=${ENDPOINTS.diy}`);
-    return { statusCode: 0, latencyMs, data: null, isDegraded: true, error: errorMsg };
-  }
+interface SimpleFetchResult {
+  statusCode: number;
+  latencyMs: number;
+  data: unknown;
+  isDegraded?: boolean;
+  error?: string;
 }
 
-interface HealthCheckResult { statusCode: number; latencyMs: number; data: unknown; error?: string; }
-
-async function checkSimpleEndpoint(url: string): Promise<HealthCheckResult> {
+async function checkSimpleEndpoint(url: string, opts?: { computeDegraded?: boolean }): Promise<SimpleFetchResult> {
   const start = performance.now();
   try {
     const response = await fetchWithProxy(`${url}?t=${Date.now()}`, {
@@ -131,12 +109,18 @@ async function checkSimpleEndpoint(url: string): Promise<HealthCheckResult> {
     const latencyMs = Math.round(performance.now() - start);
     let data: unknown;
     try { data = await response.json(); } catch { data = null; }
-    return { statusCode: response.status, latencyMs, data };
+    const result: SimpleFetchResult = { statusCode: response.status, latencyMs, data };
+    if (opts?.computeDegraded) {
+      result.isDegraded = response.status !== 200 || (Array.isArray(data) && data.length === 0) || data === null;
+    }
+    return result;
   } catch (err) {
     const latencyMs = Math.round(performance.now() - start);
     const errorMsg = (err as Error).message;
-    console.error(`[monitor] simple fetch failed (${latencyMs}ms): ${errorMsg} | url=${url}`);
-    return { statusCode: 0, latencyMs, data: null, error: errorMsg };
+    console.error(`[monitor] fetch failed (${latencyMs}ms): ${errorMsg} | url=${url}`);
+    const result: SimpleFetchResult = { statusCode: 0, latencyMs, data: null, error: errorMsg };
+    if (opts?.computeDegraded) result.isDegraded = true;
+    return result;
   }
 }
 
@@ -153,10 +137,17 @@ export async function runAllChecks() {
     notificationsSent: number;
   } = { performanceLogs: [], themeSnapshot: null, alerts: [], notificationsSent: 0 };
 
+  // Cache alerts for the duration of this run to avoid ~20 redundant KV round-trips
+  let _alertsCache: SystemAlert[] | null = null;
+  async function cachedAlerts(): Promise<SystemAlert[]> {
+    if (!_alertsCache) _alertsCache = await getSystemAlerts();
+    return _alertsCache;
+  }
+
   const [vercelResult, netlifyResult, diyResult, indexResult, trendingResult, healthResult, eventsResult, tokensResult, weatherResult, todaySafeResult, todayCssResult, faviconResult, fontsResult, patternsResult, colorSearchResult] = await Promise.all([
     checkEndpoint('vercel'),
     checkEndpoint('netlify'),
-    checkDiyEndpoint(),
+    checkSimpleEndpoint(ENDPOINTS.diy, { computeDegraded: true }),
     checkSimpleEndpoint(ENDPOINTS.indexData),
     checkSimpleEndpoint(ENDPOINTS.trending),
     checkSimpleEndpoint(ENDPOINTS.adminHealth),
@@ -189,7 +180,7 @@ export async function runAllChecks() {
 
     // Auto-resolve old alerts when platform recovers
     if (result.statusCode === 200) {
-      const existingAlerts = await getSystemAlerts();
+      const existingAlerts = await cachedAlerts();
       for (const alert of existingAlerts) {
         if (!alert.resolved && alert.type === 'OUTAGE' && alert.platform === result.platform) {
           await resolveAlert(alert.id);
@@ -197,52 +188,28 @@ export async function runAllChecks() {
       }
     }
 
-    if (result.statusCode !== 200 && result.statusCode !== 0) {
+    // Detect outage: non-200 status or fetch error
+    const isOutage = (result.statusCode !== 200 && result.statusCode !== 0) || !!result.error;
+    if (isOutage) {
       const count = await trackFailure(result.platform, 'OUTAGE');
       if (count >= FAILURE_THRESHOLD) {
-        // Deduplicate: skip if unresolved OUTAGE already exists for this platform
-        const existingAlerts = await getSystemAlerts();
+        const existingAlerts = await cachedAlerts();
         const alreadyAlerted = existingAlerts.some(
           (a) => !a.resolved && a.type === 'OUTAGE' && a.platform === result.platform
         );
-
         if (!alreadyAlerted) {
+          const msg = result.error
+            ? `${result.platform} unreachable: ${result.error} (failure #${count})`
+            : `${result.platform} returned status ${result.statusCode} (failure #${count})`;
+          const details = result.error
+            ? `Endpoint: ${ENDPOINTS[result.platform]}`
+            : `Endpoint: ${ENDPOINTS[result.platform]}, Response Time: ${result.latencyMs}ms`;
           const alert: SystemAlert = {
             id: generateId(), timestamp: now, type: 'OUTAGE',
-            platform: result.platform,
-            message: `${result.platform} returned status ${result.statusCode} (failure #${count})`,
-            details: `Endpoint: ${ENDPOINTS[result.platform]}, Response Time: ${result.latencyMs}ms`,
-            resolved: false,
+            platform: result.platform, message: msg, details, resolved: false,
           };
           await addSystemAlert(alert);
-          results.alerts.push(alert);
-          const cooling = await isAlertCooling(`OUTAGE:${result.platform}`);
-          if (!cooling) {
-            const sent = await notifyAlert(alert);
-            if (sent) results.notificationsSent++;
-            await setAlertCooldown(`OUTAGE:${result.platform}`);
-          }
-        }
-      }
-    }
-    if (result.error) {
-      const count = await trackFailure(result.platform, 'OUTAGE');
-      if (count >= FAILURE_THRESHOLD) {
-        // Deduplicate: skip if unresolved OUTAGE already exists for this platform
-        const existingAlerts = await getSystemAlerts();
-        const alreadyAlerted = existingAlerts.some(
-          (a) => !a.resolved && a.type === 'OUTAGE' && a.platform === result.platform
-        );
-
-        if (!alreadyAlerted) {
-          const alert: SystemAlert = {
-            id: generateId(), timestamp: now, type: 'OUTAGE',
-            platform: result.platform,
-            message: `${result.platform} unreachable: ${result.error} (failure #${count})`,
-            details: `Endpoint: ${ENDPOINTS[result.platform]}`,
-            resolved: false,
-          };
-          await addSystemAlert(alert);
+          _alertsCache = null; // invalidate cache
           results.alerts.push(alert);
           const cooling = await isAlertCooling(`OUTAGE:${result.platform}`);
           if (!cooling) {
@@ -292,7 +259,7 @@ export async function runAllChecks() {
       const detailStr = validation.errors.join('; ');
 
       // Deduplicate: skip if same unresolved alert already exists
-      const existingAlerts = await getSystemAlerts();
+      const existingAlerts = await cachedAlerts();
       const alreadyAlerted = existingAlerts.some(
         (a) => !a.resolved && a.type === 'SCHEMA_MISMATCH' && a.details === detailStr
       );
@@ -320,6 +287,7 @@ export async function runAllChecks() {
           resolved: false,
         };
         await addSystemAlert(alert);
+        _alertsCache = null;
         results.alerts.push(alert);
         const cooling = await isAlertCooling('SCHEMA_MISMATCH');
         if (!cooling) {
@@ -332,7 +300,7 @@ export async function runAllChecks() {
 
     // Auto-resolve security alerts when scan is clean (regardless of schema)
     if (securityCheck.isSafe) {
-      const existingAlerts = await getSystemAlerts();
+      const existingAlerts = await cachedAlerts();
       for (const alert of existingAlerts) {
         if (!alert.resolved && alert.type === 'SECURITY_BREACH') {
           await resolveAlert(alert.id);
@@ -342,7 +310,7 @@ export async function runAllChecks() {
 
     // Auto-resolve schema alerts when validation passes (regardless of security)
     if (validation.valid) {
-      const existingAlerts = await getSystemAlerts();
+      const existingAlerts = await cachedAlerts();
       for (const alert of existingAlerts) {
         if (!alert.resolved && alert.type === 'SCHEMA_MISMATCH') {
           await resolveAlert(alert.id);
@@ -357,7 +325,7 @@ export async function runAllChecks() {
         : `${securityCheck.flaggedReasons.length} issues detected`;
 
       // Deduplicate: skip if same unresolved alert already exists
-      const existingAlerts = await getSystemAlerts();
+      const existingAlerts = await cachedAlerts();
       const alreadyAlerted = existingAlerts.some(
         (a) => !a.resolved && a.type === 'SECURITY_BREACH' && a.details === detailStr
       );
@@ -387,6 +355,7 @@ export async function runAllChecks() {
           resolved: false,
         };
         await addSystemAlert(alert);
+        _alertsCache = null;
         results.alerts.push(alert);
 
         const cooling = await isAlertCooling('SECURITY_BREACH');
@@ -524,7 +493,7 @@ export async function runAllChecks() {
       const summary = `${findings.length} community themes (${presetList}) contain XSS payloads${sanitizerSummary}`;
 
       // Deduplicate
-      const existingAlerts = await getSystemAlerts();
+      const existingAlerts = await cachedAlerts();
       const alreadyAlerted = existingAlerts.some(
         (a) => !a.resolved && a.type === 'SECURITY_BREACH' && a.platform === 'community' && a.details === detailStr
       );
@@ -558,6 +527,7 @@ export async function runAllChecks() {
           resolved: false,
         };
         await addSystemAlert(alert);
+        _alertsCache = null;
         results.alerts.push(alert);
 
         const cooling = await isAlertCooling('SECURITY_BREACH:community');
@@ -569,7 +539,7 @@ export async function runAllChecks() {
       }
     } else {
       // Auto-resolve old community security alerts when scan is clean
-      const existingAlerts = await getSystemAlerts();
+      const existingAlerts = await cachedAlerts();
       for (const alert of existingAlerts) {
         if (!alert.resolved && alert.type === 'SECURITY_BREACH' && alert.platform === 'community') {
           await resolveAlert(alert.id);
@@ -600,7 +570,7 @@ export async function runAllChecks() {
   if (healthResult.statusCode === 200 && healthData && !redisConnected) {
     const count = await trackFailure('system', 'DB_DOWN');
     if (count >= FAILURE_THRESHOLD) {
-      const existingAlerts = await getSystemAlerts();
+      const existingAlerts = await cachedAlerts();
       const alreadyAlerted = existingAlerts.some(
         (a) => !a.resolved && a.type === 'DB_DOWN'
       );
@@ -613,6 +583,7 @@ export async function runAllChecks() {
           resolved: false,
         };
         await addSystemAlert(alert);
+        _alertsCache = null;
         results.alerts.push(alert);
         const cooling = await isAlertCooling('DB_DOWN');
         if (!cooling) {
@@ -627,7 +598,7 @@ export async function runAllChecks() {
   // Auto-resolve DB_DOWN when all three Redis signals are healthy
   const dbAllHealthy = !diyResult.isDegraded && !diyResult.error && redisConnected && trendingOk;
   if (dbAllHealthy) {
-    const existingAlerts = await getSystemAlerts();
+    const existingAlerts = await cachedAlerts();
     for (const alert of existingAlerts) {
       if (!alert.resolved && alert.type === 'DB_DOWN') {
         await resolveAlert(alert.id);
@@ -644,7 +615,7 @@ export async function runAllChecks() {
     if (themeAge > 3) {
       const count = await trackFailure('theme', 'THEME_STALE');
       if (count >= FAILURE_THRESHOLD) {
-        const existingAlerts = await getSystemAlerts();
+        const existingAlerts = await cachedAlerts();
         const alreadyAlerted = existingAlerts.some(
           (a) => !a.resolved && a.type === 'THEME_STALE'
         );
@@ -657,6 +628,7 @@ export async function runAllChecks() {
             resolved: false,
           };
           await addSystemAlert(alert);
+          _alertsCache = null;
           results.alerts.push(alert);
           const cooling = await isAlertCooling('THEME_STALE');
           if (!cooling) {
@@ -669,7 +641,7 @@ export async function runAllChecks() {
     } else {
       // Theme is fresh — auto-resolve and reset counter
       await resetFailure('theme', 'THEME_STALE');
-      const existingAlerts = await getSystemAlerts();
+      const existingAlerts = await cachedAlerts();
       for (const alert of existingAlerts) {
         if (!alert.resolved && alert.type === 'THEME_STALE') {
           await resolveAlert(alert.id);
@@ -712,6 +684,10 @@ export async function runAllChecks() {
     if (themeDate) hash['theme:date'] = themeDate;
     if (themeAgeDays !== null) hash['theme:age'] = String(themeAgeDays);
     hash['theme:fresh'] = themeFresh ? 'ok' : 'stale';
+    if (results.themeSnapshot) {
+      hash['theme:presetName'] = results.themeSnapshot.presetName || 'Unknown';
+      hash['theme:safe'] = results.themeSnapshot.securityStatus === 'safe' ? 'true' : 'false';
+    }
     hash['checkedAt'] = now;
     for (const [field, value] of Object.entries(hash)) {
       await kvHset('hash:status', field, value);

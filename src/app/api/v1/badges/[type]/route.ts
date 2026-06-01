@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPerformanceLogs, getThemeSnapshots, getSystemAlerts } from '@/lib/store';
+import { getStatusHash, getPerformanceLogs } from '@/lib/store';
 
 function svgBadge(label: string, value: string, color: string): string {
   const labelWidth = label.length * 8 + 14;
@@ -46,39 +46,9 @@ export async function GET(
   { params }: { params: { type: string } }
 ) {
   const { type } = params;
-  const isDebug = new URL(request.url).searchParams.has('debug');
 
-  const [logs, snapshots, alerts] = await Promise.all([
-    getPerformanceLogs(),
-    getThemeSnapshots(),
-    getSystemAlerts(),
-  ]);
-
-  if (isDebug) {
-    const recentLogs = logs.slice(-4);
-    return new Response(JSON.stringify({
-      type,
-      logsCount: logs.length,
-      recentLogsCount: recentLogs.length,
-      latestVercel: recentLogs.find((l: { platform: string }) => l.platform === 'vercel') || null,
-      latestNetlify: recentLogs.find((l: { platform: string }) => l.platform === 'netlify') || null,
-      snapshotsCount: snapshots.length,
-      alertsCount: alerts.length,
-    }, null, 2), {
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-    });
-  }
-
-  // Match /api/v1/data logic: scan last 4 logs only (same window)
-  const recentLogs = logs.slice(-4);
-  const latestVercel = recentLogs.find((l: { platform: string }) => l.platform === 'vercel');
-  const latestNetlify = recentLogs.find((l: { platform: string }) => l.platform === 'netlify');
-
-  function platformStatus(log: typeof latestVercel): string {
-    if (!log) return 'no_data';
-    if (log.statusCode === 200) return 'online';
-    return 'outage';
-  }
+  // Read from status hash (single KV call) instead of fetching all data
+  const hash = await getStatusHash();
 
   let label: string;
   let value: string;
@@ -86,53 +56,58 @@ export async function GET(
 
   switch (type) {
     case 'vercel': {
-      const st = platformStatus(latestVercel);
+      const st = hash?.['vercel:status'] || 'no_data';
+      const latency = hash?.['vercel:latency'];
       label = 'Vercel';
       value = st === 'online'
-        ? `Online (${latestVercel?.latencyMs ?? '?'}ms)`
+        ? `Online (${latency ?? '?'}ms)`
         : st === 'outage' ? 'Offline' : 'No Data';
       color = statusColor[st] ?? '#9f9f9f';
       break;
     }
     case 'netlify': {
-      const st = platformStatus(latestNetlify);
+      const st = hash?.['netlify:status'] || 'no_data';
+      const latency = hash?.['netlify:latency'];
       label = 'Netlify';
       value = st === 'online'
-        ? `Online (${latestNetlify?.latencyMs ?? '?'}ms)`
+        ? `Online (${latency ?? '?'}ms)`
         : st === 'outage' ? 'Offline' : 'No Data';
       color = statusColor[st] ?? '#9f9f9f';
       break;
     }
     case 'theme': {
-      const snap = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
+      const presetName = hash?.['theme:presetName'];
+      const isSafe = hash?.['theme:safe'] !== 'false';
       label = 'Theme';
-      if (!snap) {
+      if (!presetName) {
         value = 'No Data';
         color = '#9f9f9f';
-      } else if (snap.securityStatus === 'unsafe') {
-        value = `${snap.presetName || 'Unknown'} (Unsafe)`;
+      } else if (!isSafe) {
+        value = `${presetName} (Unsafe)`;
         color = '#e05d44';
       } else {
-        value = snap.presetName || 'Unknown';
+        value = presetName;
         color = '#4c1';
       }
       break;
     }
     case 'database': {
-      const dbDown = alerts.some((a: { type: string; resolved: boolean }) => a.type === 'DB_DOWN' && !a.resolved);
+      const dbStatus = hash?.['db:status'] || 'unknown';
       label = 'Database';
-      value = dbDown ? 'Degraded' : 'Healthy';
-      color = dbDown ? '#e05d44' : '#4c1';
+      value = dbStatus === 'healthy' ? 'Healthy' : dbStatus === 'degraded' ? 'Degraded' : 'Unknown';
+      color = dbStatus === 'healthy' ? '#4c1' : '#e05d44';
       break;
     }
     case 'uptime': {
+      // Uptime requires historical data — fall back to full fetch
+      const logs = await getPerformanceLogs();
       const totalChecks = logs.length;
-      const okChecks = logs.filter((l: { statusCode: number }) => l.statusCode === 200).length;
+      const okChecks = logs.filter((l) => l.statusCode === 200).length;
       const uptime = totalChecks > 0 ? ((okChecks / totalChecks) * 100).toFixed(1) : 'N/A';
       label = 'Uptime';
       value = `${uptime}%`;
-      color = parseFloat(uptime as string) > 99 ? '#4c1'
-        : parseFloat(uptime as string) > 95 ? '#dfb317'
+      color = parseFloat(uptime) > 99 ? '#4c1'
+        : parseFloat(uptime) > 95 ? '#dfb317'
         : '#e05d44';
       break;
     }

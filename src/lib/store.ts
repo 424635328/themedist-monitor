@@ -53,7 +53,7 @@ export async function getPerformanceLogs(): Promise<PerformanceLog[]> {
     const logs: PerformanceLog[] = [];
     for (const m of members) {
       try {
-        logs.push((typeof m === 'string' ? (typeof m === 'string' ? JSON.parse(m) : m) : m) as PerformanceLog);
+        logs.push((typeof m === 'string' ? JSON.parse(m) : m) as PerformanceLog);
       } catch { /* skip corrupt entries */ }
     }
     return logs;

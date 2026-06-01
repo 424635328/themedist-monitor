@@ -1,12 +1,21 @@
 import { NextResponse } from 'next/server';
 import {
   isKvConfigured,
-  kvSet, kvGet, kvZadd, kvZrangebyscore, kvLpush, kvLrange,
+  kvSet, kvGet, kvZadd, kvZrangebyscore,
 } from '@/lib/kv';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
+  // Require CRON_SECRET auth in production
+  const secret = process.env.CRON_SECRET;
+  if (secret) {
+    const auth = request.headers.get('authorization');
+    if (auth !== `Bearer ${secret}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  }
+
   const results: Record<string, unknown> = {
     kvConfigured: isKvConfigured(),
   };
