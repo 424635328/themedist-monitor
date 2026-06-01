@@ -4,7 +4,7 @@ import { validateTodayJson } from '@/lib/validator';
 import { fetchWithProxy } from '@/lib/fetch-proxy';
 import { kvGet, kvSet, isKvConfigured } from '@/lib/kv';
 import { logSecurityIncident } from '@/lib/security-logger';
-import { isBlocked, recordBreach } from '@/lib/ip-blocker';
+import { isBlocked } from '@/lib/ip-blocker';
 import { corsHeaders } from '@/lib/cors';
 
 const KV_KEY_LAST_SAFE = 'theme:last_safe';
@@ -72,8 +72,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Scan RAW data for attacks (before sanitization weakens detection)
+  const securityCheck = scanExtended(rawData as Record<string, unknown>);
   const sanitized = sanitizeObject(rawData);
-  const securityCheck = scanExtended(sanitized as Record<string, unknown>);
   const validation = validateTodayJson(sanitized);
 
   // Return immediately on success and cache the safe version
@@ -91,17 +92,14 @@ export async function GET(request: NextRequest) {
     }, { headers: corsHeaders() });
   }
 
-  // Log security incidents and record breach for IP blocking
+  // Log security incidents (attribute to upstream data source, not the client)
   for (const reason of securityCheck.flaggedReasons) {
     await logSecurityIncident({
       type: 'XSS_ATTACK',
       field: 'today-safe',
       payload: reason,
-      ip: clientIp,
+      ip: 'upstream-themedist',
     });
-  }
-  if (!securityCheck.isSafe || !validation.valid) {
-    await recordBreach(clientIp);
   }
 
   // Try last-known-safe fallback

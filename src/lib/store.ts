@@ -66,6 +66,9 @@ export async function addPerformanceLog(log: PerformanceLog) {
     const member = JSON.stringify(log);
     const score = new Date(log.timestamp).getTime();
     await kvZadd(KV_ZSET_PERF, member, score);
+    // Clean up entries older than 7 days
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    await kvZremrangebyscore(KV_ZSET_PERF, 0, cutoff);
     return;
   }
   const logs = readJSON<PerformanceLog[]>(PERF_FILE, []);

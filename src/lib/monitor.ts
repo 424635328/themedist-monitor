@@ -188,8 +188,8 @@ export async function runAllChecks() {
       }
     }
 
-    // Detect outage: non-200 status or fetch error
-    const isOutage = (result.statusCode !== 200 && result.statusCode !== 0) || !!result.error;
+    // Detect outage: any non-200 status or fetch error
+    const isOutage = result.statusCode !== 200 || !!result.error;
     if (isOutage) {
       const count = await trackFailure(result.platform, 'OUTAGE');
       if (count >= FAILURE_THRESHOLD) {

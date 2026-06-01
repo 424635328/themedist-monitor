@@ -33,9 +33,12 @@ async function canSend(type: string): Promise<boolean> {
   const lastSent = await kvGet<number>(key, 0);
   const now = Date.now();
   const minInterval = RATE_LIMITS[type] || 15 * 60 * 1000;
-  if (now - lastSent < minInterval) return false;
-  await kvSet(key, now);
-  return true;
+  return now - lastSent >= minInterval;
+}
+
+async function markSent(type: string): Promise<void> {
+  const key = `${NOTIFY_KEY_PREFIX}${type}`;
+  await kvSet(key, Date.now());
 }
 
 function formatAlertEmail(alert: SystemAlert): { subject: string; html: string } {
@@ -89,6 +92,7 @@ export async function notifyAlert(alert: SystemAlert): Promise<boolean> {
       html,
     });
 
+    await markSent(alert.type);
     console.log(`[Notifier] Email sent for ${alert.type}: ${alert.message}`);
     return true;
   } catch (err) {

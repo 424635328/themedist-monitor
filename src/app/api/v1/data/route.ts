@@ -11,10 +11,11 @@ export async function GET() {
 
   const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
 
-  // Current status determination
-  const latestLogs = logs.slice(-4);
-  const vercelLatest = latestLogs.find((l) => l.platform === 'vercel');
-  const netlifyLatest = latestLogs.find((l) => l.platform === 'netlify');
+  // Current status determination — filter per platform, take latest
+  const vercelLogs = logs.filter((l) => l.platform === 'vercel');
+  const netlifyLogs = logs.filter((l) => l.platform === 'netlify');
+  const vercelLatest = vercelLogs.length > 0 ? vercelLogs[vercelLogs.length - 1] : null;
+  const netlifyLatest = netlifyLogs.length > 0 ? netlifyLogs[netlifyLogs.length - 1] : null;
 
   const hasAnyData = logs.length > 0;
 
