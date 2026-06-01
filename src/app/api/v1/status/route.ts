@@ -61,7 +61,7 @@ export async function GET() {
   function platformStatus(log: PerfLog | null): 'online' | 'slow' | 'outage' | 'unknown' {
     if (!log || log.statusCode === 0) return 'outage';
     if (log.statusCode !== 200) return 'outage';
-    if (log.latencyMs > 2000) return 'slow';
+    if (log.latencyMs > 3500) return 'slow';
     return 'online';
   }
 
@@ -78,6 +78,12 @@ export async function GET() {
   }
 
   const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
+
+  // Theme freshness: flag if theme date is older than 3 days
+  const themeAge = latestSnapshot?.date
+    ? Math.floor((now - new Date(latestSnapshot.date + 'T00:00:00Z').getTime()) / (24 * 60 * 60 * 1000))
+    : null;
+  const themeFresh = themeAge !== null && themeAge <= 3;
 
   // Extract Redis health details from status hash
   const dbRedis = statusHash?.['db:redis'] ?? 'unknown';
@@ -106,6 +112,8 @@ export async function GET() {
           presetName: latestSnapshot.presetName,
           themeCount: latestSnapshot.themeCount,
           isSafe: latestSnapshot.securityStatus === 'safe',
+          ageDays: themeAge,
+          isFresh: themeFresh,
         }
       : null,
     database: {

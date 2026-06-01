@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { kvPush } from '@/lib/kv';
+import { kvPush, kvHset, isKvConfigured } from '@/lib/kv';
 import type { ProbeResult } from '@/types';
 
 export const runtime = 'edge';
@@ -65,6 +65,16 @@ export async function GET(request: Request) {
       }
     })
   );
+
+  // Update status hash with probe latency so /api/v1/status stays fresh
+  if (isKvConfigured()) {
+    for (const r of results) {
+      const isOk = r.statusCode === 200;
+      await kvHset('hash:status', `${r.platform}:status`, isOk ? 'online' : 'outage');
+      await kvHset('hash:status', `${r.platform}:latency`, String(r.latencyMs));
+    }
+    await kvHset('hash:status', 'checkedAt', new Date().toISOString());
+  }
 
   return NextResponse.json({
     probe: { region, duration: Math.round(performance.now() - start) },

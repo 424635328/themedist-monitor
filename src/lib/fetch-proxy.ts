@@ -79,21 +79,33 @@ function isProxyError(err: Error): boolean {
   return msg.includes('econnrefused') || msg.includes('enotfound') || msg.includes('etimedout');
 }
 
-export async function fetchWithProxy(url: string, init?: RequestInit): Promise<Response> {
+export async function fetchWithProxy(url: string, init?: RequestInit & { timeout?: number }): Promise<Response> {
   const proxyUrl = getProxyUrl();
+  const timeout = init?.timeout;
+  const { timeout: _, ...fetchInit } = init || {};
 
   if (!proxyUrl) {
-    return fetch(url, init);
+    if (timeout) {
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), timeout);
+      try {
+        const res = await fetch(url, { ...fetchInit, signal: ac.signal });
+        return res;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    return fetch(url, fetchInit);
   }
 
   console.log(`[fetch-proxy] using proxy ${proxyUrl} for ${new URL(url).hostname}`);
 
   try {
-    return await doRequest(url, true, init);
+    return await doRequest(url, true, fetchInit);
   } catch (err) {
     if (isProxyError(err as Error)) {
       console.warn(`[fetch-proxy] proxy failed (${(err as Error).message}), retrying direct for ${new URL(url).hostname}`);
-      return doRequest(url, false, init);
+      return doRequest(url, false, fetchInit);
     }
     throw err;
   }

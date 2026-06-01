@@ -68,6 +68,7 @@ async function checkEndpoint(platform: 'vercel' | 'netlify'): Promise<FetchResul
   try {
     const response = await fetchWithProxy(bustUrl, {
       headers: { 'User-Agent': 'ThemeDist-Monitor/1.0' },
+      timeout: 10000,
     });
     const latencyMs = Math.round(performance.now() - start);
     const cacheControl = response.headers.get('cache-control') || undefined;
@@ -103,6 +104,7 @@ async function checkDiyEndpoint(): Promise<DiyFetchResult> {
   try {
     const response = await fetchWithProxy(`${ENDPOINTS.diy}&t=${Date.now()}`, {
       headers: { 'User-Agent': 'ThemeDist-Monitor/1.0' },
+      timeout: 10000,
     });
     const latencyMs = Math.round(performance.now() - start);
     let data: unknown;
@@ -124,6 +126,7 @@ async function checkSimpleEndpoint(url: string): Promise<HealthCheckResult> {
   try {
     const response = await fetchWithProxy(`${url}?t=${Date.now()}`, {
       headers: { 'User-Agent': 'ThemeDist-Monitor/1.0' },
+      timeout: 10000,
     });
     const latencyMs = Math.round(performance.now() - start);
     let data: unknown;
@@ -633,6 +636,48 @@ export async function runAllChecks() {
     await resetFailure('system', 'DB_DOWN');
   }
 
+  // Theme freshness alert: fires after 3 consecutive stale-theme checks
+  if (results.themeSnapshot?.date) {
+    const themeAge = Math.floor(
+      (Date.now() - new Date(results.themeSnapshot.date + 'T00:00:00Z').getTime()) / (24 * 60 * 60 * 1000)
+    );
+    if (themeAge > 3) {
+      const count = await trackFailure('theme', 'THEME_STALE');
+      if (count >= FAILURE_THRESHOLD) {
+        const existingAlerts = await getSystemAlerts();
+        const alreadyAlerted = existingAlerts.some(
+          (a) => !a.resolved && a.type === 'THEME_STALE'
+        );
+        if (!alreadyAlerted) {
+          const alert: SystemAlert = {
+            id: generateId(), timestamp: now, type: 'THEME_STALE',
+            platform: 'system',
+            message: `Theme is ${themeAge} days old (date: ${results.themeSnapshot.date})`,
+            details: `Theme rotation has been stale for ${themeAge} days. Last known date: ${results.themeSnapshot.date}. Check themedist daily rotation cron.`,
+            resolved: false,
+          };
+          await addSystemAlert(alert);
+          results.alerts.push(alert);
+          const cooling = await isAlertCooling('THEME_STALE');
+          if (!cooling) {
+            const sent = await notifyAlert(alert);
+            if (sent) results.notificationsSent++;
+            await setAlertCooldown('THEME_STALE');
+          }
+        }
+      }
+    } else {
+      // Theme is fresh — auto-resolve and reset counter
+      await resetFailure('theme', 'THEME_STALE');
+      const existingAlerts = await getSystemAlerts();
+      for (const alert of existingAlerts) {
+        if (!alert.resolved && alert.type === 'THEME_STALE') {
+          await resolveAlert(alert.id);
+        }
+      }
+    }
+  }
+
   // Write status to Hash for fast Edge reads
   if (isKvConfigured()) {
     const hash: Record<string, string> = {};
@@ -658,6 +703,15 @@ export async function runAllChecks() {
     hash['fonts:status'] = fontsResult.statusCode === 200 ? 'ok' : 'stale';
     hash['patterns:status'] = patternsResult.statusCode === 200 ? 'ok' : 'stale';
     hash['color-search:status'] = colorSearchResult.statusCode === 200 ? 'ok' : 'stale';
+    // Theme freshness
+    const themeDate = results.themeSnapshot?.date || '';
+    const themeAgeDays = themeDate
+      ? Math.floor((Date.now() - new Date(themeDate + 'T00:00:00Z').getTime()) / (24 * 60 * 60 * 1000))
+      : null;
+    const themeFresh = themeAgeDays !== null && themeAgeDays <= 3;
+    if (themeDate) hash['theme:date'] = themeDate;
+    if (themeAgeDays !== null) hash['theme:age'] = String(themeAgeDays);
+    hash['theme:fresh'] = themeFresh ? 'ok' : 'stale';
     hash['checkedAt'] = now;
     for (const [field, value] of Object.entries(hash)) {
       await kvHset('hash:status', field, value);

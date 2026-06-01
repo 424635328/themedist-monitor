@@ -22,7 +22,7 @@ export async function GET() {
     if (!log && !hasAnyData) return 'no_data';
     if (!log || log.statusCode === 0) return 'outage';
     if (log.statusCode !== 200) return 'outage';
-    if (log.latencyMs > 2000) return 'slow';
+    if (log.latencyMs > 3500) return 'slow';
     return 'online';
   }
 

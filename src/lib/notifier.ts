@@ -11,6 +11,7 @@ const RATE_LIMITS: Record<string, number> = {
   SECURITY_BREACH: 30 * 60 * 1000, // 30 min
   DB_DOWN: 30 * 60 * 1000,       // 30 min
   SCHEMA_MISMATCH: 60 * 60 * 1000, // 60 min
+  THEME_STALE: 24 * 60 * 60 * 1000, // 24 hours
 };
 
 const NOTIFY_KEY_PREFIX = 'notify:last:';
@@ -43,6 +44,7 @@ function formatAlertEmail(alert: SystemAlert): { subject: string; html: string }
     SECURITY_BREACH: '⚠️ 安全入侵',
     DB_DOWN: '💾 数据库异常',
     SCHEMA_MISMATCH: '📋 Schema 不匹配',
+    THEME_STALE: '📅 主题过期',
   };
 
   const severity = alert.type === 'SECURITY_BREACH' ? '高' : alert.type === 'OUTAGE' ? '高' : '中';

@@ -56,7 +56,7 @@ export interface ThemeSnapshot {
 export interface SystemAlert {
   id: string;
   timestamp: string;
-  type: 'OUTAGE' | 'SECURITY_BREACH' | 'DB_DOWN' | 'SCHEMA_MISMATCH';
+  type: 'OUTAGE' | 'SECURITY_BREACH' | 'DB_DOWN' | 'SCHEMA_MISMATCH' | 'THEME_STALE';
   platform: 'vercel' | 'netlify' | 'both' | 'system' | 'community';
   message: string;
   details: string;
