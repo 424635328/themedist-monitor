@@ -41,6 +41,10 @@ async function markSent(type: string): Promise<void> {
   await kvSet(key, Date.now());
 }
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function formatAlertEmail(alert: SystemAlert): { subject: string; html: string } {
   const typeLabels: Record<string, string> = {
     OUTAGE: '🚨 服务宕机',
@@ -63,9 +67,9 @@ function formatAlertEmail(alert: SystemAlert): { subject: string; html: string }
     <table style="width: 100%; border-collapse: collapse;">
       <tr><td style="padding: 8px 0; color: #666;">类型</td><td style="padding: 8px 0; font-weight: 600;">${typeLabels[alert.type] || alert.type}</td></tr>
       <tr><td style="padding: 8px 0; color: #666;">严重程度</td><td style="padding: 8px 0;"><span style="background: ${severity === '高' ? '#dc3545' : '#ffc107'}; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 12px;">${severity}</span></td></tr>
-      <tr><td style="padding: 8px 0; color: #666;">平台</td><td style="padding: 8px 0;">${alert.platform}</td></tr>
-      <tr><td style="padding: 8px 0; color: #666;">消息</td><td style="padding: 8px 0; font-weight: 600;">${alert.message}</td></tr>
-      <tr><td style="padding: 8px 0; color: #666;">详情</td><td style="padding: 8px 0; font-size: 13px; color: #555;">${alert.details}</td></tr>
+      <tr><td style="padding: 8px 0; color: #666;">平台</td><td style="padding: 8px 0;">${escapeHtml(alert.platform)}</td></tr>
+      <tr><td style="padding: 8px 0; color: #666;">消息</td><td style="padding: 8px 0; font-weight: 600;">${escapeHtml(alert.message)}</td></tr>
+      <tr><td style="padding: 8px 0; color: #666;">详情</td><td style="padding: 8px 0; font-size: 13px; color: #555;">${escapeHtml(alert.details).replace(/\n/g, '<br>')}</td></tr>
       <tr><td style="padding: 8px 0; color: #666;">时间</td><td style="padding: 8px 0;">${new Date(alert.timestamp).toLocaleString('zh-CN')}</td></tr>
     </table>
     <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #e9ecef; font-size: 12px; color: #999;">

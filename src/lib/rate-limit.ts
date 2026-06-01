@@ -10,15 +10,14 @@ export async function checkRateLimit(key: string): Promise<{ allowed: boolean; r
   if (!cooldown) return { allowed: true };
 
   const kvKey = `ratelimit:${key}`;
+
+  // Atomic: NX+EX ensures only the first request in the cooldown window wins
+  const acquired = await kvSet(kvKey, String(Date.now()), { nx: true, ex: Math.ceil(cooldown / 1000) });
+  if (acquired) return { allowed: true };
+
+  // Key already exists — rate limited
   const lastRun = await kvGet<string>(kvKey, '');
-
-  if (lastRun) {
-    const elapsed = Date.now() - Number(lastRun);
-    if (elapsed < cooldown) {
-      return { allowed: false, retryAfter: Math.ceil((cooldown - elapsed) / 1000) };
-    }
-  }
-
-  await kvSet(kvKey, String(Date.now()));
-  return { allowed: true };
+  const elapsed = lastRun ? Date.now() - Number(lastRun) : cooldown;
+  const remaining = Math.max(0, cooldown - elapsed);
+  return { allowed: false, retryAfter: Math.ceil(remaining / 1000) || 1 };
 }

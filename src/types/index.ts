@@ -41,6 +41,8 @@ export interface ThemeSnapshot {
   author?: string;
   themeCount: number;
   isValidSchema: boolean;
+  autoFixedSchema?: boolean;
+  autoFixedDetails?: Array<{ key: string; action: string; detail: string }>;
   validationErrors?: string[];
   securityStatus: 'safe' | 'warning' | 'unsafe';
   flaggedReasons?: string[];

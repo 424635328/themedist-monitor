@@ -136,7 +136,6 @@ export async function GET() {
       colorSearch: statusHash?.['color-search:status'] ?? 'unknown',
     },
     checkedAt: vercelLatest?.timestamp ?? netlifyLatest?.timestamp ?? new Date().toISOString(),
-    _edgeHash: statusHash,
   }, {
     headers: {
       'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120',

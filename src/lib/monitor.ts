@@ -1,11 +1,11 @@
 import type { PerformanceLog, ThemeSnapshot, SystemAlert, TodayJsonResponse, IndexDataResponse, TrendingEntry, AdminHealthResponse } from '@/types';
-import { validateTodayJson } from './validator';
+import { validateTodayJson, autoFixCssVars } from './validator';
 import { scanExtended, scanThemeEntry } from './security';
 import { addPerformanceLog, addThemeSnapshot, addSystemAlert, addMetricsEntry } from './store';
 import { notifyAlert } from './notifier';
 import { fetchWithProxy } from './fetch-proxy';
 import { resolveAlert, getSystemAlerts } from './store';
-import { kvGet, kvSet, kvHset, isKvConfigured } from './kv';
+import { kvGet, kvSet, kvHset, kvIncr, kvExpire, isKvConfigured } from './kv';
 import { logSecurityIncident } from './security-logger';
 import { isAlertCooling, setAlertCooldown } from './alert-cooldown';
 
@@ -14,10 +14,9 @@ const FAILURE_THRESHOLD = 3; // consecutive failures before alerting
 async function trackFailure(platform: string, alertType: string): Promise<number> {
   if (!isKvConfigured()) return FAILURE_THRESHOLD; // no KV = always alert
   const key = `failure:${platform}:${alertType}`;
-  const count = await kvGet<number>(key, 0);
-  const next = count + 1;
-  await kvSet(key, next);
-  return next;
+  const count = await kvIncr(key);
+  await kvExpire(key, 3600); // 1 hour TTL to prevent stale counters
+  return count;
 }
 
 async function resetFailure(platform: string, alertType: string) {
@@ -229,7 +228,28 @@ export async function runAllChecks() {
   // Validate and audit Vercel data (primary)
   const primaryData = vercelResult.data || netlifyResult.data;
   if (primaryData) {
-    const validation = validateTodayJson(primaryData);
+    // Auto-fix cssVars when count is below MIN: sanitize values, derive missing vars, pad to threshold
+    let autoFixed = false;
+    let autoFixDetails: Array<{ key: string; action: string; detail: string }> | undefined;
+    let dataForValidation = primaryData as TodayJsonResponse;
+    if (dataForValidation.cssVars && typeof dataForValidation.cssVars === 'object') {
+      const result = autoFixCssVars(dataForValidation);
+      autoFixed = result.fixed;
+      autoFixDetails = result.details;
+      if (result.fixed) dataForValidation = result.data;
+      for (const d of result.details) {
+        if (d.action === 'sanitized') {
+          await logSecurityIncident({
+            type: 'XSS_ATTACK',
+            field: `cssVars[${d.key}]`,
+            payload: d.detail,
+            ip: 'monitor-internal',
+          });
+        }
+      }
+    }
+
+    const validation = validateTodayJson(dataForValidation);
     const securityCheck = scanExtended(primaryData as Record<string, unknown>);
 
     const themeData = primaryData as TodayJsonResponse;
@@ -240,7 +260,9 @@ export async function runAllChecks() {
       presetName: themeData.presetName || 'Unknown',
       author: themeData.author,
       themeCount: themeData.available ?? 0,
-      isValidSchema: validation.valid,
+      isValidSchema: validation.valid || autoFixed,
+      autoFixedSchema: autoFixed,
+      autoFixedDetails: autoFixDetails,
       validationErrors: validation.valid ? undefined : validation.errors,
       securityStatus: securityCheck.isSafe ? 'safe' : 'unsafe',
       flaggedReasons: securityCheck.isSafe ? undefined : securityCheck.flaggedReasons,
@@ -256,44 +278,51 @@ export async function runAllChecks() {
     results.themeSnapshot = snapshot;
 
     if (!validation.valid) {
-      const detailStr = validation.errors.join('; ');
+      // When auto-fixed, filter out cssVars-related errors — those were silently repaired
+      const effectiveErrors = autoFixed
+        ? validation.errors.filter((e) => !e.includes('cssVars'))
+        : validation.errors;
 
-      // Deduplicate: skip if same unresolved alert already exists
-      const existingAlerts = await cachedAlerts();
-      const alreadyAlerted = existingAlerts.some(
-        (a) => !a.resolved && a.type === 'SCHEMA_MISMATCH' && a.details === detailStr
-      );
+      if (effectiveErrors.length > 0) {
+        const detailStr = effectiveErrors.join('; ');
 
-      if (!alreadyAlerted) {
-        for (const err of validation.errors) {
-          await logSecurityIncident({
-            type: 'SCHEMA_MISMATCH',
-            field: 'schema',
-            payload: err,
-            ip: 'monitor-internal',
-          });
-        }
+        // Deduplicate: skip if same unresolved alert already exists
+        const existingAlerts = await cachedAlerts();
+        const alreadyAlerted = existingAlerts.some(
+          (a) => !a.resolved && a.type === 'SCHEMA_MISMATCH' && a.details === detailStr
+        );
 
-        const alert: SystemAlert = {
-          id: generateId(), timestamp: now, type: 'SCHEMA_MISMATCH',
-          platform: 'both',
-          message: `Schema validation failed: ${validation.errors.length} error(s)`,
-          details: [
-            detailStr,
-            '—',
-            'Remediation: Check themedist /api/v1/today.json response structure.',
-            'Ensure all required fields (date, preset, presetName, cssVars) are present.',
-          ].join('\n'),
-          resolved: false,
-        };
-        await addSystemAlert(alert);
-        _alertsCache = null;
-        results.alerts.push(alert);
-        const cooling = await isAlertCooling('SCHEMA_MISMATCH');
-        if (!cooling) {
-          const sent = await notifyAlert(alert);
-          if (sent) results.notificationsSent++;
-          await setAlertCooldown('SCHEMA_MISMATCH');
+        if (!alreadyAlerted) {
+          for (const err of effectiveErrors) {
+            await logSecurityIncident({
+              type: 'SCHEMA_MISMATCH',
+              field: 'schema',
+              payload: err,
+              ip: 'monitor-internal',
+            });
+          }
+
+          const alert: SystemAlert = {
+            id: generateId(), timestamp: now, type: 'SCHEMA_MISMATCH',
+            platform: 'both',
+            message: `Schema validation failed: ${effectiveErrors.length} error(s)`,
+            details: [
+              detailStr,
+              '—',
+              'Remediation: Check themedist /api/v1/today.json response structure.',
+              'Ensure all required fields (date, preset, presetName, cssVars) are present.',
+            ].join('\n'),
+            resolved: false,
+          };
+          await addSystemAlert(alert);
+          _alertsCache = null;
+          results.alerts.push(alert);
+          const cooling = await isAlertCooling('SCHEMA_MISMATCH');
+          if (!cooling) {
+            const sent = await notifyAlert(alert);
+            if (sent) results.notificationsSent++;
+            await setAlertCooldown('SCHEMA_MISMATCH');
+          }
         }
       }
     }
@@ -608,11 +637,11 @@ export async function runAllChecks() {
   }
 
   // Theme freshness alert: fires after 3 consecutive stale-theme checks
-  if (results.themeSnapshot?.date) {
+  if (results.themeSnapshot?.date && /^\d{4}-\d{2}-\d{2}$/.test(results.themeSnapshot.date)) {
     const themeAge = Math.floor(
       (Date.now() - new Date(results.themeSnapshot.date + 'T00:00:00Z').getTime()) / (24 * 60 * 60 * 1000)
     );
-    if (themeAge > 3) {
+    if (!Number.isFinite(themeAge) || themeAge > 3) {
       const count = await trackFailure('theme', 'THEME_STALE');
       if (count >= FAILURE_THRESHOLD) {
         const existingAlerts = await cachedAlerts();

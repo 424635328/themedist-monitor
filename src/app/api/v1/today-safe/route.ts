@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sanitizeObject, scanExtended } from '@/lib/security';
-import { validateTodayJson } from '@/lib/validator';
+import { validateTodayJson, autoFixCssVars } from '@/lib/validator';
 import { fetchWithProxy } from '@/lib/fetch-proxy';
 import { kvGet, kvSet, isKvConfigured } from '@/lib/kv';
 import { logSecurityIncident } from '@/lib/security-logger';
@@ -75,18 +75,40 @@ export async function GET(request: NextRequest) {
   // Scan RAW data for attacks (before sanitization weakens detection)
   const securityCheck = scanExtended(rawData as Record<string, unknown>);
   const sanitized = sanitizeObject(rawData);
-  const validation = validateTodayJson(sanitized);
+
+  // Auto-fix cssVars when count is below MIN: sanitize values, derive missing vars, pad to threshold
+  let schemaAutoFixed = false;
+  let dataForValidation = sanitized as unknown as import('@/types').TodayJsonResponse;
+  if (dataForValidation.cssVars && typeof dataForValidation.cssVars === 'object') {
+    const result = autoFixCssVars(dataForValidation);
+    schemaAutoFixed = result.fixed;
+    if (result.fixed) dataForValidation = result.data;
+    for (const d of result.details) {
+      if (d.action === 'sanitized') {
+        await logSecurityIncident({
+          type: 'XSS_ATTACK',
+          field: `today-safe:cssVars[${d.key}]`,
+          payload: d.detail,
+          ip: 'upstream-themedist',
+        });
+      }
+    }
+  }
+
+  const validation = validateTodayJson(dataForValidation);
 
   // Return immediately on success and cache the safe version
   if (securityCheck.isSafe && validation.valid) {
+    const responseData = schemaAutoFixed ? dataForValidation : sanitized;
     if (isKvConfigured()) {
-      await kvSet(KV_KEY_LAST_SAFE, JSON.stringify(sanitized));
+      await kvSet(KV_KEY_LAST_SAFE, JSON.stringify(responseData));
     }
     return NextResponse.json({
-      ...sanitized,
+      ...responseData,
       _meta: {
         sanitized: true,
         schemaValid: true,
+        schemaAutoFixed: schemaAutoFixed || undefined,
         timestamp: new Date().toISOString(),
       },
     }, { headers: corsHeaders() });

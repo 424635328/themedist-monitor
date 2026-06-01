@@ -41,11 +41,10 @@ export async function kvSet<T>(key: string, value: T, options?: KvSetOptions): P
 export async function kvPush<T>(key: string, item: T): Promise<void> {
   if (!isKvConfigured()) return;
   try {
-    const arr = await getClient().get<T[]>(key);
-    const updated = [...(arr || []), item];
-    // Keep only last 1000 entries per key to limit memory
-    const trimmed = updated.length > 1000 ? updated.slice(-1000) : updated;
-    await getClient().set(key, trimmed);
+    // Use atomic LPUSH + LTRIM to avoid read-modify-write race condition
+    const listKey = `${key}:list`;
+    await getClient().lpush(listKey, JSON.stringify(item));
+    await getClient().ltrim(listKey, 0, 999);
   } catch {
     // silently fail
   }
@@ -94,7 +93,7 @@ export async function kvHset(key: string, field: string, value: unknown): Promis
 }
 
 export async function kvHincrby(key: string, field: string, increment: number): Promise<number> {
-  if (!isKvConfigured()) return increment;
+  if (!isKvConfigured()) return 0;
   try {
     return await getClient().hincrby(key, field, increment);
   } catch {

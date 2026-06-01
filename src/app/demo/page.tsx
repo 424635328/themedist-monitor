@@ -34,15 +34,19 @@ interface ThemePayload {
   logoColors?: string[];
 }
 
-// Sanitize CSS: strip <script>, event handlers, javascript: URIs
+// Sanitize CSS: strip <script>, event handlers, javascript: URIs, data:text/html, dangerous url()
 function sanitizeCss(css: string): string {
   return css
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
     .replace(/<\/?iframe\b[^>]*>/gi, '')
+    .replace(/<\/?(?:embed|object|form|svg|math)\b[^>]*>/gi, '')
+    .replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|\S+)/gi, '')
     .replace(/javascript\s*:/gi, 'blocked:')
+    .replace(/data\s*:\s*text\s*\/\s*html/gi, 'data:text/plain')
     .replace(/expression\s*\(/gi, 'blocked(')
     .replace(/-moz-binding/gi, 'blocked')
-    .replace(/behavior\s*:/gi, 'blocked:');
+    .replace(/behavior\s*:/gi, 'blocked:')
+    .replace(/url\s*\(\s*(['"]?)\s*(?:javascript|data)\s*:/gi, 'url($1blocked:');
 }
 
 // Sanitize extension HTML: strip event handlers and dangerous tags

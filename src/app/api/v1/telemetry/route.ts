@@ -27,7 +27,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    const platform = body.platform || 'unknown';
+    const ALLOWED_PLATFORMS = ['vercel', 'netlify', 'unknown'];
+    const platform = ALLOWED_PLATFORMS.includes(body.platform) ? body.platform : 'unknown';
     const latencyBin = getLatencyBin(Math.round(duration));
     const dateKey = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 

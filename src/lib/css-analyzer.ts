@@ -37,7 +37,7 @@ const TRUSTED_CDNS = [
 function isTrustedUrl(url: string): boolean {
   try {
     const u = new URL(url);
-    return TRUSTED_CDNS.some((cdn) => u.hostname.endsWith(cdn));
+    return TRUSTED_CDNS.some((cdn) => u.hostname === cdn || u.hostname.endsWith('.' + cdn));
   } catch {
     return false;
   }

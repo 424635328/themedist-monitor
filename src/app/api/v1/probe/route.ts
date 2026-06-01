@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { kvPush, kvHset, isKvConfigured } from '@/lib/kv';
+import { kvLpush, kvLtrim, kvHset, isKvConfigured } from '@/lib/kv';
 import type { ProbeResult } from '@/types';
 
 export const runtime = 'edge';
@@ -46,7 +46,8 @@ export async function GET(request: Request) {
           tlsMs,
         };
 
-        await kvPush('probe:results', result);
+        await kvLpush('probe:results', JSON.stringify(result));
+        await kvLtrim('probe:results', 0, 999);
         return result;
       } catch (err) {
         const latencyMs = Math.round(performance.now() - probeStart);
@@ -60,7 +61,8 @@ export async function GET(request: Request) {
           latencyMs,
           error: (err as Error).message,
         };
-        await kvPush('probe:results', result);
+        await kvLpush('probe:results', JSON.stringify(result));
+        await kvLtrim('probe:results', 0, 999);
         return result;
       }
     })

@@ -40,7 +40,9 @@ function readJSON<T>(filePath: string, fallback: T): T {
 
 function writeJSON<T>(filePath: string, data: T) {
   ensureDataDir();
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  const tmp = filePath + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf-8');
+  fs.renameSync(tmp, filePath);
 }
 
 // --- Performance Logs ---
@@ -198,7 +200,7 @@ export async function resolveAlert(alertId: string) {
         } catch { updated.push(item); }
       }
       await kvDelete(KV_LIST_ALERTS);
-      for (let i = updated.length - 1; i >= 0; i--) {
+      for (let i = 0; i < updated.length; i++) {
         await kvLpush(KV_LIST_ALERTS, updated[i]);
       }
       await kvLtrim(KV_LIST_ALERTS, 0, 199);

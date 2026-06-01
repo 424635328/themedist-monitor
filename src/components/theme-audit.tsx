@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Shield, ShieldAlert, AlertTriangle, Palette, User, CheckCircle, CircleX, Layers, MousePointerClick, Users, Code2 } from 'lucide-react';
+import { Shield, ShieldAlert, AlertTriangle, Palette, User, CheckCircle, CircleX, Layers, MousePointerClick, Users, Code2, Wrench } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import type { ThemeSnapshot } from '@/types';
 
@@ -125,16 +125,31 @@ export default function ThemeAudit() {
 
         <div className="flex flex-wrap gap-3 mb-3">
           <div className="flex items-center gap-1.5 text-xs">
-            {isSchemaValid ? (
-              <CheckCircle className="w-3.5 h-3.5 text-green-400" />
+            {snapshot.autoFixedSchema ? (
+              <><Wrench className="w-3.5 h-3.5 text-yellow-400" /><span className="text-yellow-400">Schema已修复</span></>
+            ) : isSchemaValid ? (
+              <><CheckCircle className="w-3.5 h-3.5 text-green-400" /><span className="text-green-400">{t('theme.schemaValid')}</span></>
             ) : (
-              <CircleX className="w-3.5 h-3.5 text-red-400" />
+              <><CircleX className="w-3.5 h-3.5 text-red-400" /><span className="text-red-400">{t('theme.schemaInvalid')}</span></>
             )}
-            <span className={isSchemaValid ? 'text-green-400' : 'text-red-400'}>
-              {isSchemaValid ? t('theme.schemaValid') : t('theme.schemaInvalid')}
-            </span>
           </div>
         </div>
+
+        {snapshot.autoFixedSchema && snapshot.autoFixedDetails && snapshot.autoFixedDetails.length > 0 && (
+          <div className="mb-3">
+            <ul className="space-y-0.5">
+              {snapshot.autoFixedDetails.map((d, i) => (
+                <li key={i} className="text-xs text-zinc-400 flex items-start gap-1">
+                  <span className="text-yellow-400 mt-0.5">
+                    {d.action === 'sanitized' ? '!' : d.action === 'derived' ? '~' : '+'}
+                  </span>
+                  <span className="font-mono">{d.key}</span>
+                  <span className="text-zinc-500">— {d.detail}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {snapshot.validationErrors && snapshot.validationErrors.length > 0 && (
           <div className="mb-3">

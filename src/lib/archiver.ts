@@ -6,17 +6,17 @@ const KV_KEY_HOURLY = 'aggregation:hourly';
 const KV_KEY_DAILY = 'aggregation:daily';
 
 function getHourKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  const h = String(date.getHours()).padStart(2, '0');
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  const h = String(date.getUTCHours()).padStart(2, '0');
   return `${y}-${m}-${d}-${h}`;
 }
 
 function getDateKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 }
 
@@ -79,9 +79,18 @@ export async function runDailyAggregation(): Promise<DailyAggregate[]> {
   yesterday.setDate(yesterday.getDate() - 1);
   const yKey = getDateKey(yesterday);
 
-  // Get all hourly data for yesterday
-  const allHourly = await kvGet<Record<string, HourlyAggregate[]>>(`${KV_KEY_HOURLY}:all`, {});
-  const yHours = Object.entries(allHourly).filter(([k]) => k.startsWith(yKey));
+  // Get all hourly data for yesterday using the hourly index
+  const hourlyKeys = await kvList<string>(`${KV_KEY_HOURLY}:index`, []);
+  const yHourKeys = hourlyKeys.filter((k) => k.startsWith(yKey));
+
+  if (yHourKeys.length === 0) return [];
+
+  // Fetch each hourly record individually
+  const yHours: [string, HourlyAggregate[]][] = [];
+  for (const hk of yHourKeys) {
+    const data = await kvGet<HourlyAggregate[]>(`${KV_KEY_HOURLY}:${hk}`, []);
+    if (data.length > 0) yHours.push([hk, data]);
+  }
 
   if (yHours.length === 0) return [];
 
