@@ -85,8 +85,10 @@ export async function GET() {
     : null;
   const themeFresh = themeAge !== null && themeAge <= 3;
 
-  // Extract Redis health details from status hash
-  const dbRedis = statusHash?.['db:redis'] ?? 'unknown';
+  // Extract health details from status hash (written by monitor.ts)
+  // Returns null when the monitor hasn't run yet — no guessing.
+  const dbStatus = statusHash?.['db:status'] ?? null;
+  const dbRedis = statusHash?.['db:redis'] ?? null;
   const dbPending = statusHash?.['db:pending'] ? parseInt(statusHash['db:pending'], 10) : null;
   const dbApproved = statusHash?.['db:approved'] ? parseInt(statusHash['db:approved'], 10) : null;
 
@@ -117,7 +119,8 @@ export async function GET() {
         }
       : null,
     database: {
-      status: dbRedis,
+      status: dbStatus,
+      redis: dbRedis,
       pending: dbPending,
       approved: dbApproved,
     },

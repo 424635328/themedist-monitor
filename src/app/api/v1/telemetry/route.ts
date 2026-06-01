@@ -32,8 +32,7 @@ export async function POST(request: NextRequest) {
     const dateKey = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
     // Atomic increments — no raw entry storage, minimal KV ops
-    // Fire and forget the writes
-    Promise.all([
+    await Promise.all([
       kvHincrby(KEY_TOTAL_REQUESTS, `${platform}:${dateKey}:total`, 1),
       kvHincrby(KEY_TOTAL_REQUESTS, `${platform}:${dateKey}:ok`, duration < 2000 ? 1 : 0),
       kvHincrby(KEY_TOTAL_REQUESTS, `${platform}:${dateKey}:sum_latency`, Math.round(duration)),

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useLanguage } from '@/lib/i18n';
 
 // ================= 类型定义 =================
@@ -32,6 +32,27 @@ interface ThemePayload {
   extensions?: Extension[];
   logoText?: string;
   logoColors?: string[];
+}
+
+// Sanitize CSS: strip <script>, event handlers, javascript: URIs
+function sanitizeCss(css: string): string {
+  return css
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<\/?iframe\b[^>]*>/gi, '')
+    .replace(/javascript\s*:/gi, 'blocked:')
+    .replace(/expression\s*\(/gi, 'blocked(')
+    .replace(/-moz-binding/gi, 'blocked')
+    .replace(/behavior\s*:/gi, 'blocked:');
+}
+
+// Sanitize extension HTML: strip event handlers and dangerous tags
+function sanitizeExtensionHtml(html: string): string {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<\/?iframe\b[^>]*>/gi, '')
+    .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|\S+)/gi, '')
+    .replace(/(href|src)\s*=\s*(['"])\s*javascript\s*:/gi, '$1=$2blocked:')
+    .replace(/(href|src)\s*=\s*(['"])data\s*:\s*text\/html/gi, '$1=$2blocked:');
 }
 
 // 需要进行直观分析检视的 CSS 变量清单
@@ -209,9 +230,9 @@ export default function ThemeDist() {
       {/* 1. 静态基础样式与动画 */}
       <style dangerouslySetInnerHTML={{ __html: staticStyles }} />
 
-      {/* 2. 运行时动态生成的额外 CSS */}
+      {/* 2. 运行时动态生成的额外 CSS (sanitized) */}
       {activeTheme?.customCss && (
-        <style dangerouslySetInnerHTML={{ __html: activeTheme.customCss }} />
+        <style dangerouslySetInnerHTML={{ __html: sanitizeCss(activeTheme.customCss) }} />
       )}
 
       {/* 3. 氛围光球背景 */}
@@ -220,14 +241,14 @@ export default function ThemeDist() {
         <div className="glow-orb orb-2" id="ambient-orb-2"></div>
       </div>
 
-      {/* 4. 用于注入 API 自定义 HTML 扩展的挂载容器 */}
+      {/* 4. 用于注入 API 自定义 HTML 扩展的挂载容器 (sanitized) */}
       <div
         id="exts-container"
         dangerouslySetInnerHTML={{
           __html:
             activeTheme?.extensions
               ?.filter((ext) => ext.type === 'decorative' && ext.html)
-              .map((ext) => ext.html!)
+              .map((ext) => sanitizeExtensionHtml(ext.html!))
               .join('') || '',
         }}
       />
@@ -235,19 +256,23 @@ export default function ThemeDist() {
       {activeTheme?.extensions
         ?.filter((ext) => ext.type === 'floating' && ext.char)
         .map((ext, i) => {
-          const cssParts: string[] = ['position:fixed', 'pointer-events:none', 'z-index:0'];
-          if (ext.top) cssParts.push(`top:${ext.top}`);
-          if (ext.left) cssParts.push(`left:${ext.left}`);
-          if (ext.right) cssParts.push(`right:${ext.right}`);
-          if (ext.bottom) cssParts.push(`bottom:${ext.bottom}`);
-          if (ext.fontSize) cssParts.push(`font-size:${ext.fontSize}`);
-          if (ext.animation) cssParts.push(`animation:${ext.animation}`);
+          const style: React.CSSProperties = {
+            position: 'fixed',
+            pointerEvents: 'none',
+            zIndex: 0,
+          };
+          if (ext.top) style.top = ext.top;
+          if (ext.left) style.left = ext.left;
+          if (ext.right) style.right = ext.right;
+          if (ext.bottom) style.bottom = ext.bottom;
+          if (ext.fontSize) style.fontSize = ext.fontSize;
+          if (ext.animation) style.animation = ext.animation;
           const opacity = Number(ext.opacity);
-          if (!Number.isNaN(opacity)) cssParts.push(`opacity:${Math.max(0, Math.min(1, opacity))}`);
+          if (!Number.isNaN(opacity)) style.opacity = Math.max(0, Math.min(1, opacity));
           return (
             <div
               key={`floating-${i}`}
-              style={{ cssText: cssParts.join(';') } as React.CSSProperties}
+              style={style}
             >
               {String(ext.char).slice(0, 4)}
             </div>

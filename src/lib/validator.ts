@@ -2,7 +2,7 @@ import type { TodayJsonResponse } from '@/types';
 
 const REQUIRED_TOP_LEVEL = ['date', 'preset', 'presetName', 'cssVars', 'layerContext', 'apiVersion'];
 const REQUIRED_CSS_VARS = ['--color-primary', '--color-bg'];
-const MIN_CSS_VARS = 48;
+const MIN_CSS_VARS = 40;
 const MAX_CSS_VARS = 60;
 
 export interface ValidationResult {

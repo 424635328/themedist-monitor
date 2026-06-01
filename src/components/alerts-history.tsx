@@ -214,9 +214,12 @@ export default function AlertsHistory() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: alertId }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setAlerts(data.alerts?.recent || []);
-    } catch {}
+    } catch (err) {
+      console.error('[AlertsHistory] Failed to resolve alert:', err);
+    }
   }, []);
 
   const resolveAll = useCallback(async () => {
@@ -226,9 +229,12 @@ export default function AlertsHistory() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setAlerts(data.alerts?.recent || []);
-    } catch {}
+    } catch (err) {
+      console.error('[AlertsHistory] Failed to resolve all alerts:', err);
+    }
   }, []);
 
   async function copyAlerts() {
@@ -304,7 +310,8 @@ export default function AlertsHistory() {
         </div>
 
         {displayed.length === 0 ? (
-          <div className="text-xs text-zinc-600 py-6 text-center">
+          <div className="text-xs text-zinc-600 py-8 text-center">
+            <BellOff className="w-6 h-6 mx-auto mb-2 text-zinc-700" />
             {showResolved ? t('alerts.noAlerts') : t('alerts.allClear')}
           </div>
         ) : (
@@ -313,7 +320,7 @@ export default function AlertsHistory() {
               <div
                 key={alert.id}
                 onClick={() => setSelected(alert)}
-                className={`group flex items-start gap-3 p-3 rounded-xl text-xs cursor-pointer transition-all duration-200 border border-transparent hover:border-zinc-600/40 hover:bg-[#15151e] hover:shadow-[0_4px_20px_rgba(0,0,0,0.3)] ${
+                className={`group flex items-start gap-3 p-3.5 rounded-xl text-xs cursor-pointer transition-all duration-200 border border-transparent hover:border-zinc-600/40 hover:bg-[#15151e] hover:shadow-[0_4px_24px_rgba(0,0,0,0.35)] ${
                   alert.resolved ? 'bg-[#1a1a22] opacity-60' : 'bg-[#1a1a22]'
                 }`}
               >

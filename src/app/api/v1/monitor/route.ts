@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import fs from 'fs';
+import path from 'path';
 import { runAllChecks } from '@/lib/monitor';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { kvSet, isKvConfigured } from '@/lib/kv';
@@ -98,8 +100,6 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   if (!isCronOrAuthorized(request)) return unauthorized();
 
-  const fs = require('fs');
-  const path = require('path');
   const dataDir = process.env.VERCEL
     ? path.join('/tmp', 'data')
     : path.join(process.cwd(), 'data');

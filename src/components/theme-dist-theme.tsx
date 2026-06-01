@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { Sparkles, Undo2, Loader2 } from 'lucide-react';
 
 const STORAGE_KEY = 'td-monitor-theme';
+const CACHE_KEY = 'td-theme-cache';
 const NATIVE_THEME: Record<string, string> = {
   '--color-primary': '#3b82f6',
   '--color-bg': '#0a0a0f',
@@ -23,12 +24,17 @@ interface ThemeData {
   preset?: string;
 }
 
+declare global {
+  interface Window {
+    __tdThemeCached?: ThemeData;
+  }
+}
+
 export default function ThemeDistTheme() {
   const [applied, setApplied] = useState(false);
   const [presetName, setPresetName] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [intentionalNative, setIntentionalNative] = useState(false);
   const styleRef = useRef<HTMLStyleElement | null>(null);
   const extRefs = useRef<HTMLElement[]>([]);
   const retryCount = useRef(0);
@@ -63,11 +69,17 @@ export default function ThemeDistTheme() {
     }
 
     if (data.customCss) {
-      const style = document.createElement('style');
-      style.setAttribute('data-td-theme', '1');
-      style.textContent = data.customCss;
-      document.head.appendChild(style);
-      styleRef.current = style;
+      // Avoid duplicating the <style> tag if blocking script already injected it
+      const existing = document.querySelector('style[data-td-theme="1"]');
+      if (!existing) {
+        const style = document.createElement('style');
+        style.setAttribute('data-td-theme', '1');
+        style.textContent = data.customCss;
+        document.head.appendChild(style);
+        styleRef.current = style;
+      } else {
+        styleRef.current = existing as HTMLStyleElement;
+      }
     }
 
     const fragment = document.createDocumentFragment();
@@ -107,6 +119,15 @@ export default function ThemeDistTheme() {
     setApplied(true);
     setLoading(false);
     localStorage.setItem(STORAGE_KEY, 'applied');
+    // Cache full data for the blocking script in <head>
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        cssVars: data.cssVars,
+        customCss: data.customCss || null,
+        presetName: data.presetName || '',
+        preset: data.preset || '',
+      }));
+    } catch { /* quota exceeded, ignore */ }
   }, []);
 
   const load = useCallback(async () => {
@@ -130,7 +151,7 @@ export default function ThemeDistTheme() {
         return; // keep showing loading state
       }
 
-      // Both attempts failed — show error
+      // Both attempts failed — apply native theme
       for (const [key, val] of Object.entries(NATIVE_THEME)) {
         document.documentElement.style.setProperty(key, val);
       }
@@ -146,36 +167,60 @@ export default function ThemeDistTheme() {
       setApplied(false);
       setPresetName('');
       setError(false);
-      setIntentionalNative(true);
       localStorage.setItem(STORAGE_KEY, 'native');
+      localStorage.removeItem(CACHE_KEY);
+      // Remove the blocking-script injected style if present
+      document.querySelectorAll('style[data-td-theme="1"]').forEach(el => el.remove());
     } else {
-      setIntentionalNative(false);
       retryCount.current = 0;
       load();
     }
   }, [applied, cleanupTheme, load]);
 
-  // On mount: auto-apply unless user explicitly chose native
+  // On mount: check if blocking script already applied the cached theme
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved === 'native') {
-      setIntentionalNative(true);
       for (const [key, val] of Object.entries(NATIVE_THEME)) {
         document.documentElement.style.setProperty(key, val);
       }
       setLoading(false);
-    } else {
-      // Auto-apply on first visit or when previously applied
-      load();
+      return;
     }
+
+    // If the blocking <head> script already applied the theme, skip the fetch
+    if (window.__tdThemeCached) {
+      const cached = window.__tdThemeCached;
+      // CSS vars + customCss already injected by blocking script — just sync React state
+      if (cached.customCss) {
+        const existing = document.querySelector('style[data-td-theme="1"]');
+        if (existing) styleRef.current = existing as HTMLStyleElement;
+      }
+      setPresetName(cached.presetName || '');
+      setApplied(true);
+      setLoading(false);
+      // Schedule a background refresh to update cache (fire-and-forget)
+      fetch('/api/v1/today-safe')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.cssVars?.['--color-primary']) {
+            applyTheme(data as ThemeData);
+          }
+        })
+        .catch(() => {});
+      return;
+    }
+
+    // First visit or cache cleared — fetch from network
+    load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
-      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-zinc-500 bg-zinc-800/50">
+      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-zinc-500 bg-zinc-800/50 animate-pulse">
         <Loader2 className="w-3 h-3 animate-spin" />
-        <span className="hidden sm:inline">加载主题…</span>
-        <span className="sm:hidden">…</span>
+        <span className="hidden sm:inline">Loading theme...</span>
+        <span className="sm:hidden">...</span>
       </span>
     );
   }
@@ -184,9 +229,9 @@ export default function ThemeDistTheme() {
     <button
       onClick={error ? load : toggle}
       title={
-        error ? '点击重试加载 ThemeDist 主题'
-        : applied ? `当前主题: ${presetName} — 点击恢复原生`
-        : '点击加载 ThemeDist 主题'
+        error ? 'Retry loading ThemeDist theme'
+        : applied ? `Current theme: ${presetName} — click to restore native`
+        : 'Click to load ThemeDist theme'
       }
       className={`group flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-300 ${
         applied
@@ -206,7 +251,7 @@ export default function ThemeDistTheme() {
       ) : (
         <>
           <Sparkles className={`w-3.5 h-3.5 ${error ? 'text-amber-400' : ''}`} />
-          <span>{error ? '点击重试' : '主题加载失败'}</span>
+          <span>{error ? 'Retry' : 'Theme unavailable'}</span>
         </>
       )}
     </button>

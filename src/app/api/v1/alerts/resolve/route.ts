@@ -7,6 +7,11 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const { id } = body as { id?: string };
 
+  // Validate id format if provided (must be a non-empty string)
+  if (id !== undefined && (typeof id !== 'string' || id.trim().length === 0)) {
+    return NextResponse.json({ error: 'Invalid alert id' }, { status: 400 });
+  }
+
   if (id) {
     await resolveAlert(id);
   } else {

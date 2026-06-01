@@ -2,8 +2,8 @@ import nodemailer from 'nodemailer';
 import type { SystemAlert } from '@/types';
 import { kvGet, kvSet } from './kv';
 
-const FROM = '"ThemeDist Monitor" <424635328@qq.com>';
-const TO = '424635328@qq.com';
+const FROM = `"ThemeDist Monitor" <${process.env.QQ_EMAIL_USER || 'noreply@example.com'}>`;
+const TO = process.env.NOTIFY_EMAIL || process.env.QQ_EMAIL_USER || 'noreply@example.com';
 
 // Rate limit: minimum interval (ms) between same-type notifications
 const RATE_LIMITS: Record<string, number> = {

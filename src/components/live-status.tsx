@@ -129,12 +129,12 @@ export default function LiveStatus() {
 
   return (
     <div className="card animate-fade-in">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <Activity className="w-4 h-4 text-zinc-400" />
           <h2 className="text-sm font-semibold text-white">{t('liveStatus.title')}</h2>
           {dataTimestamp && (
-            <span className="text-[10px] text-zinc-600">{formatAgo(dataTimestamp)}</span>
+            <span className="text-[10px] text-zinc-600 font-mono">{formatAgo(dataTimestamp)}</span>
           )}
         </div>
         <button
@@ -148,11 +148,11 @@ export default function LiveStatus() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className={`flex items-center gap-3 p-3.5 rounded-lg bg-[#1a1a22] border border-transparent transition-shadow duration-500 ${cardGlow(vercel.status)}`}>
+        <div className={`flex items-center gap-3 p-4 rounded-xl bg-[#1a1a22] border border-transparent transition-all duration-500 ${cardGlow(vercel.status)}`}>
           <Globe className={`w-7 h-7 ${iconColor(vercel.status)} shrink-0`} />
           <div className="min-w-0">
-            <div className="text-[11px] text-zinc-500 font-medium">Vercel</div>
-            <div className="flex items-center gap-2 mt-0.5">
+            <div className="text-[11px] text-zinc-500 font-medium uppercase tracking-wider">Vercel</div>
+            <div className="flex items-center gap-2 mt-1">
               <span className={`status-dot ${statusDot(vercel.status) || ''}`} />
               <span className="text-sm font-semibold text-[var(--color-text,#fff)]">{statusLabel(vercel.status)}</span>
             </div>
@@ -162,11 +162,11 @@ export default function LiveStatus() {
           </div>
         </div>
 
-        <div className={`flex items-center gap-3 p-3.5 rounded-lg bg-[#1a1a22] border border-transparent transition-shadow duration-500 ${cardGlow(netlify.status)}`}>
+        <div className={`flex items-center gap-3 p-4 rounded-xl bg-[#1a1a22] border border-transparent transition-all duration-500 ${cardGlow(netlify.status)}`}>
           <Globe className={`w-7 h-7 ${iconColor(netlify.status)} shrink-0`} />
           <div className="min-w-0">
-            <div className="text-[11px] text-zinc-500 font-medium">Netlify</div>
-            <div className="flex items-center gap-2 mt-0.5">
+            <div className="text-[11px] text-zinc-500 font-medium uppercase tracking-wider">Netlify</div>
+            <div className="flex items-center gap-2 mt-1">
               <span className={`status-dot ${statusDot(netlify.status) || ''}`} />
               <span className="text-sm font-semibold text-[var(--color-text,#fff)]">{statusLabel(netlify.status)}</span>
             </div>
@@ -176,11 +176,11 @@ export default function LiveStatus() {
           </div>
         </div>
 
-        <div className={`flex items-center gap-3 p-3.5 rounded-lg bg-[#1a1a22] border border-transparent transition-shadow duration-500 ${cardGlow(db)}`}>
+        <div className={`flex items-center gap-3 p-4 rounded-xl bg-[#1a1a22] border border-transparent transition-all duration-500 ${cardGlow(db)}`}>
           <Database className={`w-7 h-7 ${iconColor(db)} shrink-0`} />
           <div className="min-w-0">
-            <div className="text-[11px] text-zinc-500 font-medium">{t('liveStatus.database')}</div>
-            <div className="flex items-center gap-2 mt-0.5">
+            <div className="text-[11px] text-zinc-500 font-medium uppercase tracking-wider">{t('liveStatus.database')}</div>
+            <div className="flex items-center gap-2 mt-1">
               <span className={`status-dot ${statusDot(db) || ''}`} />
               <span className="text-sm font-semibold text-[var(--color-text,#fff)]">{dbLabel(db)}</span>
             </div>
@@ -197,7 +197,7 @@ export default function LiveStatus() {
         {ENDPOINT_META.map(({ key, label, icon: Icon }) => {
           const s = endpointStatuses[key] ?? 'unknown';
           return (
-            <div key={key} className={`flex items-center gap-2 p-2.5 rounded-lg bg-[#1a1a22] border border-transparent transition-shadow duration-500 ${cardGlow(s === 'ok' ? 'online' : s === 'stale' ? 'slow' : 'unknown')}`}>
+            <div key={key} className={`flex items-center gap-2 p-2.5 rounded-xl bg-[#1a1a22] border border-transparent transition-all duration-500 ${cardGlow(s === 'ok' ? 'online' : s === 'stale' ? 'slow' : 'unknown')}`}>
               <Icon className={`w-4 h-4 ${s === 'ok' ? 'text-emerald-400' : s === 'stale' ? 'text-orange-400' : 'text-zinc-500'} shrink-0`} />
               <div className="min-w-0">
                 <div className="text-[10px] text-zinc-500 font-medium">{label}</div>

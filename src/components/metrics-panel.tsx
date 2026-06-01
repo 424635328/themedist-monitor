@@ -51,7 +51,11 @@ export default function MetricsPanel() {
           <BarChart3 className="w-4 h-4 text-zinc-400" />
           <h2 className="text-sm font-semibold text-white">{t('metrics.title')}</h2>
         </div>
-        <div className="text-xs text-zinc-600 py-8 text-center">{t('metrics.loading')}</div>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-10 rounded-lg bg-[#1a1a22] animate-shimmer" />
+          ))}
+        </div>
       </div>
     );
   }

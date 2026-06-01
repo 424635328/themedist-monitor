@@ -23,7 +23,11 @@ export default function ThemeAudit() {
           <Palette className="w-4 h-4 text-zinc-400" />
           <h2 className="text-sm font-semibold text-white">{t('theme.title')}</h2>
         </div>
-        <div className="text-xs text-zinc-600 py-8 text-center">{t('theme.noData')}</div>
+        <div className="space-y-3">
+          <div className="h-5 rounded-lg bg-[#1a1a22] animate-shimmer w-3/4" />
+          <div className="h-5 rounded-lg bg-[#1a1a22] animate-shimmer w-1/2" />
+          <div className="h-5 rounded-lg bg-[#1a1a22] animate-shimmer w-2/3" />
+        </div>
       </div>
     );
   }

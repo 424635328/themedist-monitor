@@ -47,14 +47,11 @@ export async function GET() {
     );
   }
 
-  // DB health — read from status hash (same source as /api/v1/status)
+  // DB health — read from status hash (written by monitor.ts)
+  // Returns null when the monitor hasn't run yet — no guessing.
   const statusHash = await getStatusHash();
-  const dbStatus: string = statusHash?.['db:status'] ?? (
-    hasAnyData
-      ? (!alerts.some((a) => a.type === 'DB_DOWN' && !a.resolved) ? 'healthy' : 'degraded')
-      : 'no_data'
-  );
-  const dbRedis: string = statusHash?.['db:redis'] ?? 'unknown';
+  const dbStatus = statusHash?.['db:status'] ?? null;
+  const dbRedis = statusHash?.['db:redis'] ?? null;
   const dbPending: number | null = statusHash?.['db:pending'] ? parseInt(statusHash['db:pending'], 10) : null;
   const dbApproved: number | null = statusHash?.['db:approved'] ? parseInt(statusHash['db:approved'], 10) : null;
 

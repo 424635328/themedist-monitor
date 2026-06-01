@@ -45,22 +45,22 @@ export default function Home() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-in">
         <div>
-          <h1 className="text-xl font-bold text-[var(--color-text,#fff)] tracking-tight">{t('page.title')}</h1>
-          <p className="text-xs text-[var(--color-text-muted,#71717a)] mt-1 max-w-lg leading-relaxed">
+          <h1 className="text-2xl font-bold text-[var(--color-text,#fff)] tracking-tight">{t('page.title')}</h1>
+          <p className="text-xs text-[var(--color-text-muted,#71717a)] mt-1.5 max-w-lg leading-relaxed">
             {t('page.subtitle')}
           </p>
         </div>
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-3 shrink-0">
           {lastRun && (
             <span className="text-[11px] text-zinc-600 font-mono hidden md:inline">{t('page.lastRun')}{lastRun}</span>
           )}
           <button
             onClick={runMonitor}
             disabled={running}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_12px_rgba(59,130,246,0.15)] hover:shadow-[0_0_20px_rgba(59,130,246,0.3)]"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-[0_0_16px_rgba(59,130,246,0.2)] hover:shadow-[0_0_24px_rgba(59,130,246,0.35)] active:scale-[0.97]"
           >
             {running ? (
               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -73,10 +73,10 @@ export default function Home() {
       </div>
 
       {message && (
-        <div className={`flex items-center gap-2 text-xs px-4 py-2.5 rounded-lg animate-fade-in ${
+        <div className={`flex items-center gap-2.5 text-xs px-4 py-3 rounded-xl animate-fade-in ${
           isAlert
-            ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
-            : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+            ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20 shadow-[0_0_12px_rgba(249,115,22,0.08)]'
+            : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.08)]'
         }`}>
           <span className={`w-1.5 h-1.5 rounded-full ${isAlert ? 'bg-orange-400' : 'bg-emerald-400'}`} />
           {message}
