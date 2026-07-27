@@ -2,7 +2,7 @@ import type { PerformanceLog, ThemeSnapshot, SystemAlert } from '@/types';
 import fs from 'fs';
 import path from 'path';
 import {
-  kvGet, kvSet, kvList, kvPush, kvZadd, kvZrangebyscore, kvZremrangebyscore,
+  kvGet, kvSet, kvZadd, kvZrangebyscore, kvZremrangebyscore,
   kvLpush, kvLtrim, kvLrange, kvDelete,
   kvHset, kvHgetall,
   isKvConfigured,

@@ -121,6 +121,12 @@ const translations = {
     'metrics.sla7d': '7 天',
     'metrics.sla30d': '30 天',
 
+    'heatmap.title': 'SLA 热力图（近 30 天）',
+    'heatmap.noData': '无数据',
+    'heatmap.legend.good': '正常',
+    'heatmap.legend.warn': '波动',
+    'heatmap.legend.bad': '宕机',
+
     'demo.hero1': '边缘实时计算的',
     'demo.hero2': '今日视觉轮换',
     'demo.heroSub': '注入 48+ 个 CSS 变量与专属定制动画，零延迟、无阻塞、赋能全站动态美感。',
@@ -274,6 +280,12 @@ const translations = {
     'metrics.sla': 'SLA Uptime',
     'metrics.sla7d': '7 Days',
     'metrics.sla30d': '30 Days',
+
+    'heatmap.title': 'SLA Heatmap (Last 30 Days)',
+    'heatmap.noData': 'No data',
+    'heatmap.legend.good': 'Healthy',
+    'heatmap.legend.warn': 'Degraded',
+    'heatmap.legend.bad': 'Outage',
 
     'demo.hero1': 'Edge-computed',
     'demo.hero2': 'Daily Visual Rotation',

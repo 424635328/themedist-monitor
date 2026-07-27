@@ -113,7 +113,7 @@ const DANGEROUS_URL_SCHEME = /url\s*\(\s*(['"]?)\s*(javascript|data)\s*:/gi;
 const EXPRESSION_CALL = /expression\s*\(/gi;
 const JS_SCHEME = /javascript\s*:/gi;
 const HTML_TEMPLATE = /data\s*:\s*text\s*\/\s*html/gi;
-const HTML_TAGS = /<\/?(?:script|iframe|embed|object|style|link|form|input|svg|math)[\s>\/]/gi;
+const HTML_TAGS = /<\/?(?:script|iframe|embed|object|style|link|form|input|svg|math)[\s>/]/gi;
 const ON_EVENT = /\bon[a-z]+\s*=/gi;
 const ESCAPED_DANGLING = /\\(['"])/g;
 const CONTROL_CHARS = /[\x00-\x08\x0e-\x1f]/g;

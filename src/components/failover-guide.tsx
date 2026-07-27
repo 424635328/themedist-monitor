@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, Copy, Check, ChevronDown, ChevronRight } from 'lucide-react';
+import { Shield, Copy, Check, ChevronRight } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 
 export default function FailoverGuide() {

@@ -1,6 +1,6 @@
 import type { PerformanceLog, HourlyAggregate, DailyAggregate } from '@/types';
 import { getPerformanceLogs } from './store';
-import { kvGet, kvSet, kvDelete, kvPush, kvList } from './kv';
+import { kvGet, kvSet, kvList } from './kv';
 
 const KV_KEY_HOURLY = 'aggregation:hourly';
 const KV_KEY_DAILY = 'aggregation:daily';

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { kvHincrby, kvHset, isKvConfigured } from '@/lib/kv';
+import { kvHincrby, isKvConfigured } from '@/lib/kv';
 
 const KEY_TOTAL_REQUESTS = 'rum:counters';
 const KEY_LATENCY_BINS = 'rum:latency_bins';

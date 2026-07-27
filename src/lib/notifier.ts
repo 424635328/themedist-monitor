@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import type { SystemAlert } from '@/types';
 import { kvGet, kvSet } from './kv';
+import { sendWebhookAlerts } from './webhook';
 
 const FROM = `"ThemeDist Monitor" <${process.env.QQ_EMAIL_USER || 'noreply@example.com'}>`;
 const TO = process.env.NOTIFY_EMAIL || process.env.QQ_EMAIL_USER || 'noreply@example.com';
@@ -85,6 +86,7 @@ export async function notifyAlert(alert: SystemAlert): Promise<boolean> {
   const allowed = await canSend(alert.type);
   if (!allowed) return false;
 
+  let emailSent = false;
   try {
     const transporter = getTransporter();
     const { subject, html } = formatAlertEmail(alert);
@@ -96,13 +98,24 @@ export async function notifyAlert(alert: SystemAlert): Promise<boolean> {
       html,
     });
 
-    await markSent(alert.type);
+    emailSent = true;
     console.log(`[Notifier] Email sent for ${alert.type}: ${alert.message}`);
-    return true;
   } catch (err) {
     console.error('[Notifier] Failed to send email:', (err as Error).message);
-    return false;
   }
+
+  // Webhook channels (feishu/dingtalk/wecom/slack/discord/telegram) run in
+  // parallel with email — any successful delivery counts as notified.
+  let webhooksSent = 0;
+  try {
+    webhooksSent = await sendWebhookAlerts(alert);
+  } catch (err) {
+    console.error('[Notifier] Webhook dispatch failed:', (err as Error).message);
+  }
+
+  const sent = emailSent || webhooksSent > 0;
+  if (sent) await markSent(alert.type);
+  return sent;
 }
 
 export function formatAlertBatch(alerts: SystemAlert[]): string | null {

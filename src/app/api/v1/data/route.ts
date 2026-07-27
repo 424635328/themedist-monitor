@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPerformanceLogs, getThemeSnapshots, getSystemAlerts, getMetricsHistory, getStatusHash } from '@/lib/store';
 import { getRecentIncidents } from '@/lib/security-logger';
+import { latencyPercentiles } from '@/lib/latency-stats';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +48,14 @@ export async function GET() {
     );
   }
 
+  // P50/P95/P99 over successful requests only — errors distort tail latency
+  function latencyTail(platform: string) {
+    const vals = last24h
+      .filter((l) => l.platform === platform && l.statusCode === 200)
+      .map((l) => l.latencyMs);
+    return latencyPercentiles(vals);
+  }
+
   // DB health — read from status hash (written by monitor.ts)
   // Returns null when the monitor hasn't run yet — no guessing.
   const statusHash = await getStatusHash();
@@ -72,6 +81,21 @@ export async function GET() {
     netlify: { d7: calcSla('netlify', 7), d30: calcSla('netlify', 30) },
   };
 
+  // Per-day availability buckets for the SLA heatmap.
+  // Log retention is 7 days, so older heatmap cells render as "no data".
+  const dailyUptime: Record<string, Record<string, { ok: number; total: number }>> = {
+    vercel: {},
+    netlify: {},
+  };
+  for (const l of logs) {
+    const day = l.timestamp.slice(0, 10);
+    const platform = dailyUptime[l.platform];
+    if (!platform) continue;
+    const cell = (platform[day] ??= { ok: 0, total: 0 });
+    cell.total++;
+    if (l.statusCode === 200) cell.ok++;
+  }
+
   // Fetch metrics history from sorted sets (last 24h)
   const metricsSince = Date.now() - 24 * 60 * 60 * 1000;
   const [vercelMetrics, netlifyMetrics, securityIncidents] = await Promise.all([
@@ -91,6 +115,7 @@ export async function GET() {
     },
     metrics: {
       avgLatency24h: { vercel: avgLatency('vercel'), netlify: avgLatency('netlify') },
+      latencyPercentiles24h: { vercel: latencyTail('vercel'), netlify: latencyTail('netlify') },
       cdnHitRate,
       themeCount: latestSnapshot?.themeCount ?? 0,
       sla,
@@ -99,6 +124,7 @@ export async function GET() {
       vercel: vercelMetrics,
       netlify: netlifyMetrics,
     },
+    dailyUptime,
     performanceLogs: last24h.slice(-100),
     latestSnapshot,
     alerts: {

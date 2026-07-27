@@ -6,6 +6,7 @@ import { useLanguage } from '@/lib/i18n';
 import LiveStatus from '@/components/live-status';
 import MetricsPanel from '@/components/metrics-panel';
 import ThemeAudit from '@/components/theme-audit';
+import SlaHeatmap from '@/components/sla-heatmap';
 import AlertsHistory from '@/components/alerts-history';
 import FailoverGuide from '@/components/failover-guide';
 
@@ -86,13 +87,15 @@ export default function Home() {
       <LiveStatus />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
           <MetricsPanel />
         </div>
-        <div>
+        <div className="space-y-6">
           <ThemeAudit key={refreshKey} />
         </div>
       </div>
+
+      <SlaHeatmap key={`heatmap-${refreshKey}`} />
 
       <AlertsHistory key={refreshKey} />
       <FailoverGuide />

@@ -1,5 +1,5 @@
 import { auditCustomCss, auditCssVars } from './css-analyzer';
-import { sanitizeHtml, sanitizeExtensions } from './html-sanitizer';
+import { sanitizeExtensions } from './html-sanitizer';
 
 // NOTE: no 'g' flag — these are used with .test() which is stateful
 // with 'g', causing phantom matches across invocations (lastIndex bug).

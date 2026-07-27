@@ -9,8 +9,15 @@ import {
 import { BarChart3, Timer, Layers } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 
+interface LatencyPercentiles {
+  p50: number;
+  p95: number;
+  p99: number;
+}
+
 interface MetricsData {
   avgLatency24h: { vercel: number; netlify: number };
+  latencyPercentiles24h?: { vercel: LatencyPercentiles; netlify: LatencyPercentiles };
   cdnHitRate: number;
   themeCount: number;
   sla: { vercel: { d7: number; d30: number }; netlify: { d7: number; d30: number } };
@@ -111,6 +118,11 @@ export default function MetricsPanel() {
             <span className="text-xs font-normal text-zinc-500">{t('metrics.ms')}</span>
           </div>
           <div className="text-xs text-zinc-500">{t('metrics.vercelAvg')}</div>
+          {metrics.latencyPercentiles24h && (
+            <div className="text-[10px] text-zinc-600 font-mono mt-0.5">
+              P95 {metrics.latencyPercentiles24h.vercel.p95} · P99 {metrics.latencyPercentiles24h.vercel.p99}
+            </div>
+          )}
         </div>
         <div className="bg-[#1a1a22] rounded-lg p-3 text-center">
           <Timer className="w-4 h-4 text-green-400 mx-auto mb-1" />
@@ -119,6 +131,11 @@ export default function MetricsPanel() {
             <span className="text-xs font-normal text-zinc-500">{t('metrics.ms')}</span>
           </div>
           <div className="text-xs text-zinc-500">{t('metrics.netlifyAvg')}</div>
+          {metrics.latencyPercentiles24h && (
+            <div className="text-[10px] text-zinc-600 font-mono mt-0.5">
+              P95 {metrics.latencyPercentiles24h.netlify.p95} · P99 {metrics.latencyPercentiles24h.netlify.p99}
+            </div>
+          )}
         </div>
         <div className="bg-[#1a1a22] rounded-lg p-3 text-center">
           <Layers className="w-4 h-4 text-purple-400 mx-auto mb-1" />
